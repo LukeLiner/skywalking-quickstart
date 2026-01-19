@@ -1,0 +1,15 @@
+#????
+spring:
+  application:
+    name: xiaozhou-order
+  cloud:
+    nacos:
+      discovery:
+        #nacos?????
+        server-addr: localhost:8848
+        #nacos???????
+        username: nacos
+        password: nacos
+#????
+server:
+  port: 8089

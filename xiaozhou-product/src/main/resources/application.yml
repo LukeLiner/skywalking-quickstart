@@ -1,0 +1,20 @@
+#????
+spring:
+  application:
+    name: xiaozhou-product
+  cloud:
+    nacos:
+      discovery:
+        #nacos?????
+        server-addr: localhost:8848
+        #nacos???????
+        username: nacos
+        password: nacos
+  datasource:
+      url: jdbc:mysql:///mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true
+      username: root
+      password: root
+      driver-class-name: com.mysql.cj.jdbc.Driver
+#????
+server:
+  port: 8090

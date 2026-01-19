@@ -1,0 +1,99 @@
+version: '3.8'
+
+services:
+  nacos:
+    image: nacos/nacos-server:v2.2.3
+    container_name: nacos-standalone
+    environment:
+      - MODE=standalone
+    ports:
+      - "8848:8848"
+      - "9848:9848" # gRPC port for Nacos 2.x
+    networks:
+      - skywalking-net
+
+  skywalking-oap:
+    image: apache/skywalking-oap-server:8.5.0-es7
+    container_name: skywalking-oap
+    ports:
+      - "11800:11800"
+      - "12800:12800"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/dev/tcp/127.0.0.1/11800"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - skywalking-net
+
+  skywalking-ui:
+    image: apache/skywalking-ui:8.5.0
+    container_name: skywalking-ui
+    depends_on:
+      - skywalking-oap
+    ports:
+      - "8080:8080"
+    environment:
+      - SW_OAP_ADDRESS=skywalking-oap:12800
+    networks:
+      - skywalking-net
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql-db
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=mytestshop
+    ports:
+      - "3306:3306"
+    networks:
+      - skywalking-net
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  xiaozhou-order:
+    build:
+      context: .
+      dockerfile: xiaozhou-order/Dockerfile
+    container_name: xiaozhou-order
+    ports:
+      - "8089:8089"
+    environment:
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SW_AGENT_NAME=xiaozhou-order
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
+    depends_on:
+      - nacos
+      - skywalking-oap
+    networks:
+      - skywalking-net
+
+  xiaozhou-product:
+    build:
+      context: .
+      dockerfile: xiaozhou-product/Dockerfile
+    container_name: xiaozhou-product
+    ports:
+      - "8090:8090"
+    environment:
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SW_AGENT_NAME=xiaozhou-product
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+      skywalking-oap:
+        condition: service_started
+    networks:
+      - skywalking-net
+
+networks:
+  skywalking-net:
+    driver: bridge
