@@ -5,11 +5,22 @@ spring:
   cloud:
     nacos:
       discovery:
-        #nacos?????
-        server-addr: localhost:8848
-        #nacos???????
+        #nacos server address
+        server-addr: nacos:8848
         username: nacos
         password: nacos
 #????
 server:
   port: 8089
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: 'prometheus'
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
