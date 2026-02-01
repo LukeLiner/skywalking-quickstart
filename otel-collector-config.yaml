@@ -1,0 +1,79 @@
+receivers:
+  filelog:
+    include:
+      - /var/log/apps/xiaozhou-order/*.log
+      - /var/log/apps/xiaozhou-product/*.log
+    start_at: end
+    operators:
+      # Parse JSON logs
+      - type: json_parser
+        timestamp:
+          parse_from: attributes["@timestamp"]
+          layout: '%Y-%m-%dT%H:%M:%S.%LZ'
+      
+      # Extract service name from file path
+      - type: regex_parser
+        regex: '/var/log/apps/(?P<service_name>[^/]+)/'
+        parse_from: attributes["log.file.path"]
+      
+      # Move parsed fields to resource attributes
+      - type: move
+        from: attributes.service_name
+        to: resource["service.name"]
+      
+      - type: move
+        from: attributes.level
+        to: attributes["log.level"]
+      
+      - type: move
+        from: attributes.thread_name
+        to: attributes["thread.name"]
+      
+      - type: move
+        from: attributes.logger_name
+        to: attributes["logger.name"]
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+  
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: "production"
+        action: insert
+  
+  resourcedetection:
+    detectors: [env, system]
+    timeout: 5s
+
+exporters:
+  # OpenSearch exporter
+  opensearch:
+    logs_index: logs-otel
+    http:
+      endpoint: http://opensearch:9200
+      timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+  
+  # Debug exporter for troubleshooting
+  debug:
+    verbosity: detailed
+    sampling_initial: 5
+    sampling_thereafter: 200
+
+service:
+  pipelines:
+    logs:
+      receivers: [filelog]
+      processors: [batch, resource, resourcedetection]
+      exporters: [opensearch, debug]
+  
+  telemetry:
+    logs:
+      level: info

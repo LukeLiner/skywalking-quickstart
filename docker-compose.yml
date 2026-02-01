@@ -13,21 +13,31 @@ services:
       - skywalking-net
 
   skywalking-oap:
-    image: apache/skywalking-oap-server:8.5.0-es7
+    build:
+      context: .
+      dockerfile: skywalking-oap/Dockerfile
     container_name: skywalking-oap
     ports:
       - "11800:11800"
       - "12800:12800"
+    environment:
+      - SW_STORAGE=mysql
+      - SW_JDBC_URL=jdbc:mysql://mysql:3306/skywalking?useSSL=false&serverTimezone=GMT&allowPublicKeyRetrieval=true
+      - SW_DATA_SOURCE_USER=root
+      - SW_DATA_SOURCE_PASSWORD=root
     healthcheck:
-      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/dev/tcp/127.0.0.1/11800"]
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/11800"]
       interval: 30s
       timeout: 10s
       retries: 3
     networks:
       - skywalking-net
+    depends_on:
+      mysql:
+        condition: service_healthy
 
   skywalking-ui:
-    image: apache/skywalking-ui:8.5.0
+    image: apache/skywalking-ui:9.1.0
     container_name: skywalking-ui
     depends_on:
       - skywalking-oap
@@ -46,6 +56,8 @@ services:
       - MYSQL_DATABASE=mytestshop
     ports:
       - "3306:3306"
+    volumes:
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     networks:
       - skywalking-net
     healthcheck:
@@ -57,6 +69,9 @@ services:
     build:
       context: .
       dockerfile: xiaozhou-order/Dockerfile
+      args:
+        - HTTP_PROXY=${HTTP_PROXY}
+        - HTTPS_PROXY=${HTTPS_PROXY}
     container_name: xiaozhou-order
     ports:
       - "8089:8089"
@@ -64,6 +79,9 @@ services:
       - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
       - SW_AGENT_NAME=xiaozhou-order
       - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
+    volumes:
+      - app-logs:/var/log/apps
+      - ${USERPROFILE}/.m2:/root/.m2
     depends_on:
       - nacos
       - skywalking-oap
@@ -74,6 +92,9 @@ services:
     build:
       context: .
       dockerfile: xiaozhou-product/Dockerfile
+      args:
+        - HTTP_PROXY=${HTTP_PROXY}
+        - HTTPS_PROXY=${HTTPS_PROXY}
     container_name: xiaozhou-product
     ports:
       - "8090:8090"
@@ -84,6 +105,9 @@ services:
       - SPRING_DATASOURCE_PASSWORD=root
       - SW_AGENT_NAME=xiaozhou-product
       - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
+    volumes:
+      - app-logs:/var/log/apps
+      - ${USERPROFILE}/.m2:/root/.m2
     depends_on:
       mysql:
         condition: service_healthy
@@ -138,9 +162,66 @@ services:
     depends_on:
       - prometheus
 
+  # OpenSearch for log storage
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: opensearch
+    environment:
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch-data:/usr/share/opensearch/data
+    networks:
+      - skywalking-net
+
+  # OpenSearch Dashboards for visualization
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.0
+    container_name: opensearch-dashboards
+    ports:
+      - "5601:5601"
+    environment:
+      - OPENSEARCH_HOSTS=http://opensearch:9200
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+      - SERVER_DEFAULTROUTE=/app/home
+      - OPENSEARCH_DASHBOARDS_DEFAULTAPPID=home
+    networks:
+      - skywalking-net
+    depends_on:
+      - opensearch
+
+  # OpenTelemetry Collector for log collection
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+      - app-logs:/var/log/apps:ro
+    networks:
+      - skywalking-net
+    depends_on:
+      - opensearch
+      - xiaozhou-order
+      - xiaozhou-product
+
 networks:
   skywalking-net:
     driver: bridge
 
 volumes:
   grafana-storage:
+  opensearch-data:
+  app-logs:

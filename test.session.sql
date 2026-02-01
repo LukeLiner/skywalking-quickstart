@@ -1,4 +1,4 @@
-CREATE TABLE `product` (
+CREATE TABLE IF NOT EXISTS `product` (
   `id` int(11) NOT NULL AUTO_INCREMENT COMMENT 'Primary Key',
   `name` varchar(255) DEFAULT NULL COMMENT 'Product Name',
   `price` decimal(10,2) DEFAULT NULL COMMENT 'Product Price',
@@ -8,5 +8,5 @@ CREATE TABLE `product` (
   `update_time` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT 'Update Time',
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-
+CREATE DATABASE IF NOT EXISTS skywalking;
 SELECT * from product;

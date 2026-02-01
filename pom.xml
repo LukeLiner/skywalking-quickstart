@@ -19,6 +19,34 @@
         <spring-cloud.version>Hoxton.SR8</spring-cloud.version>
     </properties>
 
+    <repositories>
+        <repository>
+            <id>huaweicloud</id>
+            <name>Huawei Cloud Repository</name>
+            <url>https://repo.huaweicloud.com/repository/maven/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
+    <pluginRepositories>
+        <pluginRepository>
+            <id>huaweicloud-plugin</id>
+            <name>Huawei Cloud Plugin Repository</name>
+            <url>https://repo.huaweicloud.com/repository/maven/</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+            </snapshots>
+        </pluginRepository>
+    </pluginRepositories>
+
     <dependencies>
 
         <dependency>
