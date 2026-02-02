@@ -1,0 +1,29 @@
+# Prometheus configuration with Remote Write to OpenSearch
+# Requires: prometheus-opensearch-adapter
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: 'xiaozhou-order'
+    static_configs:
+      - targets: ['xiaozhou-order:8089']
+    metrics_path: '/actuator/prometheus'
+  
+  - job_name: 'xiaozhou-product'
+    static_configs:
+      - targets: ['xiaozhou-product:8090']
+    metrics_path: '/actuator/prometheus'
+  
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+
+# Remote write to adapter
+remote_write:
+  - url: "http://prometheus-opensearch-adapter:9201/write"
+    queue_config:
+      max_samples_per_send: 1000
+      batch_send_deadline: 5s
+      max_shards: 10

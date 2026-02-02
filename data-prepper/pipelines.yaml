@@ -1,0 +1,19 @@
+# Data Prepper Pipeline Configuration
+# Receive OTLP metrics from OTel Collector and write to OpenSearch
+
+otel-metrics-pipeline:
+  source:
+    otel_metrics_source:
+      port: 21891
+      ssl: false
+  buffer:
+    bounded_blocking:
+      buffer_size: 1024
+      batch_size: 256
+  sink:
+    - opensearch:
+        hosts:
+          - "http://opensearch:9200"
+        index_type: custom
+        index: "metrics-otel-%{yyyy.MM.dd}"
+        bulk_size: 4

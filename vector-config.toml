@@ -1,0 +1,32 @@
+# Vector configuration for Prometheus -> OpenSearch
+# Lightweight and high-performance
+
+[sources.prometheus_scrape]
+type = "prometheus_scrape"
+endpoints = [
+  "http://xiaozhou-order:8089/actuator/prometheus",
+  "http://xiaozhou-product:8090/actuator/prometheus",
+  "http://cadvisor:8080/metrics"
+]
+scrape_interval_secs = 30
+
+[transforms.add_metadata]
+type = "remap"
+inputs = ["prometheus_scrape"]
+source = '''
+  .environment = "production"
+  .cluster = "skywalking-quickstart"
+'''
+
+[sinks.opensearch]
+type = "elasticsearch"
+inputs = ["add_metadata"]
+endpoint = "http://opensearch:9200"
+index = "metrics-vector-%Y.%m.%d"
+compression = "gzip"
+batch.max_bytes = 10485760
+batch.timeout_secs = 5
+
+[sinks.opensearch.buffer]
+type = "disk"
+max_size = 268435488

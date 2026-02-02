@@ -209,6 +209,8 @@ services:
     image: otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
+    ports:
+      - "8889:8889"  # Prometheus metrics endpoint
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
       - app-logs:/var/log/apps:ro
@@ -216,8 +218,24 @@ services:
       - skywalking-net
     depends_on:
       - opensearch
+      - data-prepper
       - xiaozhou-order
       - xiaozhou-product
+
+  # Data Prepper for metrics ingestion to OpenSearch
+  data-prepper:
+    image: opensearchproject/data-prepper:2.6.1
+    container_name: data-prepper
+    volumes:
+      - ./data-prepper/pipelines.yaml:/usr/share/data-prepper/pipelines/pipelines.yaml
+      - ./data-prepper/data-prepper-config.yaml:/usr/share/data-prepper/config/data-prepper-config.yaml
+    ports:
+      - "21891:21891"  # OTel metrics source
+    networks:
+      - skywalking-net
+    depends_on:
+      - opensearch
+    restart: always
 
 networks:
   skywalking-net:

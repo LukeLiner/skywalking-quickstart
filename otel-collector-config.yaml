@@ -1,37 +1,56 @@
 receivers:
+  # File log receiver
   filelog:
     include:
       - /var/log/apps/xiaozhou-order/*.log
       - /var/log/apps/xiaozhou-product/*.log
     start_at: end
     operators:
-      # Parse JSON logs
       - type: json_parser
         timestamp:
           parse_from: attributes["@timestamp"]
           layout: '%Y-%m-%dT%H:%M:%S.%LZ'
-      
-      # Extract service name from file path
       - type: regex_parser
         regex: '/var/log/apps/(?P<service_name>[^/]+)/'
         parse_from: attributes["log.file.path"]
-      
-      # Move parsed fields to resource attributes
       - type: move
         from: attributes.service_name
         to: resource["service.name"]
-      
       - type: move
         from: attributes.level
         to: attributes["log.level"]
-      
       - type: move
         from: attributes.thread_name
         to: attributes["thread.name"]
-      
       - type: move
         from: attributes.logger_name
         to: attributes["logger.name"]
+
+  # Prometheus receiver (scrape metrics)
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'otel-collector'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['localhost:8888']
+        
+        - job_name: 'xiaozhou-order'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['xiaozhou-order:8089']
+          metrics_path: '/actuator/prometheus'
+        
+        - job_name: 'xiaozhou-product'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['xiaozhou-product:8090']
+          metrics_path: '/actuator/prometheus'
+        
+        - job_name: 'cadvisor'
+          scrape_interval: 30s
+          static_configs:
+            - targets: ['cadvisor:8080']
 
 processors:
   batch:
@@ -49,8 +68,8 @@ processors:
     timeout: 5s
 
 exporters:
-  # OpenSearch exporter
-  opensearch:
+  # OpenSearch exporter for logs
+  opensearch/logs:
     logs_index: logs-otel
     http:
       endpoint: http://opensearch:9200
@@ -61,7 +80,17 @@ exporters:
       max_interval: 30s
       max_elapsed_time: 300s
   
-  # Debug exporter for troubleshooting
+  # OTLP exporter to Data Prepper (for metrics)
+  otlp/dataprepper:
+    endpoint: data-prepper:21891
+    tls:
+      insecure: true
+  
+  # Prometheus exporter (keep existing Prometheus/Grafana)
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+  
+  # Debug exporter
   debug:
     verbosity: detailed
     sampling_initial: 5
@@ -72,7 +101,12 @@ service:
     logs:
       receivers: [filelog]
       processors: [batch, resource, resourcedetection]
-      exporters: [opensearch, debug]
+      exporters: [opensearch/logs, debug]
+    
+    metrics:
+      receivers: [prometheus]
+      processors: [batch, resource]
+      exporters: [otlp/dataprepper, prometheus]
   
   telemetry:
     logs:
