@@ -1,5 +1,5 @@
 # SkyWalking OAP with MySQL driver
-FROM apache/skywalking-oap-server:9.1.0
+FROM apache/skywalking-oap-server:9.3.0
 
 # Download MySQL Connector/J using curl
 ENV MYSQL_CONNECTOR_VERSION=8.0.28

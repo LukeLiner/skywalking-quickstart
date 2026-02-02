@@ -26,10 +26,11 @@ services:
       - SW_DATA_SOURCE_USER=root
       - SW_DATA_SOURCE_PASSWORD=root
     healthcheck:
-      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/11800"]
+      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/12800"]
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 120s
     networks:
       - skywalking-net
     depends_on:
@@ -37,14 +38,15 @@ services:
         condition: service_healthy
 
   skywalking-ui:
-    image: apache/skywalking-ui:9.1.0
+    image: apache/skywalking-ui:9.3.0
     container_name: skywalking-ui
     depends_on:
-      - skywalking-oap
+      skywalking-oap:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
-      - SW_OAP_ADDRESS=skywalking-oap:12800
+      - SW_OAP_ADDRESS=http://skywalking-oap:12800
     networks:
       - skywalking-net
 
