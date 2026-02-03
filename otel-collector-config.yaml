@@ -1,4 +1,18 @@
 receivers:
+  # SkyWalking receiver (from SkyWalking OAP exporter)
+  skywalking:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:11801
+
+  # OTLP receiver for traces
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
   # File log receiver
   filelog:
     include:
@@ -81,8 +95,14 @@ exporters:
       max_elapsed_time: 300s
   
   # OTLP exporter to Data Prepper (for metrics)
-  otlp/dataprepper:
+  otlp/dataprepper-metrics:
     endpoint: data-prepper:21891
+    tls:
+      insecure: true
+  
+  # OTLP exporter to Data Prepper (for traces)
+  otlp/dataprepper-traces:
+    endpoint: data-prepper:21890
     tls:
       insecure: true
   
@@ -106,7 +126,12 @@ service:
     metrics:
       receivers: [prometheus]
       processors: [batch, resource]
-      exporters: [otlp/dataprepper, prometheus]
+      exporters: [otlp/dataprepper-metrics, prometheus]
+    
+    traces:
+      receivers: [otlp, skywalking]
+      processors: [batch, resource]
+      exporters: [otlp/dataprepper-traces]
   
   telemetry:
     logs:

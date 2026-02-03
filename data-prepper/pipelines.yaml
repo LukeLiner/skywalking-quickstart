@@ -1,6 +1,7 @@
 # Data Prepper Pipeline Configuration
-# Receive OTLP metrics from OTel Collector and write to OpenSearch
+# Metrics + Traces to OpenSearch
 
+# ============== Metrics Pipeline ==============
 otel-metrics-pipeline:
   source:
     otel_metrics_source:
@@ -10,6 +11,8 @@ otel-metrics-pipeline:
     bounded_blocking:
       buffer_size: 1024
       batch_size: 256
+  processor:
+    - otel_metrics_raw_processor:
   sink:
     - opensearch:
         hosts:
@@ -17,3 +20,55 @@ otel-metrics-pipeline:
         index_type: custom
         index: "metrics-otel-%{yyyy.MM.dd}"
         bulk_size: 4
+
+# ============== Trace Pipeline ==============
+# Entry pipeline: receive OTLP traces
+entry-pipeline:
+  source:
+    otel_trace_source:
+      port: 21890
+      ssl: false
+  buffer:
+    bounded_blocking:
+      buffer_size: 25600
+      batch_size: 400
+  sink:
+    - pipeline:
+        name: "raw-trace-pipeline"
+    - pipeline:
+        name: "service-map-pipeline"
+
+# Raw trace processing pipeline
+raw-trace-pipeline:
+  source:
+    pipeline:
+      name: "entry-pipeline"
+  buffer:
+    bounded_blocking:
+      buffer_size: 25600
+      batch_size: 400
+  processor:
+    - otel_trace_raw:
+  sink:
+    - opensearch:
+        hosts:
+          - "http://opensearch:9200"
+        index_type: trace-analytics-raw
+
+# Service map pipeline
+service-map-pipeline:
+  source:
+    pipeline:
+      name: "entry-pipeline"
+  buffer:
+    bounded_blocking:
+      buffer_size: 25600
+      batch_size: 400
+  processor:
+    - service_map_stateful:
+        window_duration: 180
+  sink:
+    - opensearch:
+        hosts:
+          - "http://opensearch:9200"
+        index_type: trace-analytics-service-map

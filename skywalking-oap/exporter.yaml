@@ -1,0 +1,25 @@
+# SkyWalking OAP Exporter Configuration
+# Export trace/metrics data to external systems via gRPC
+
+# gRPC Exporter - sends data to OTel Collector
+grpc:
+  enable: ${SW_EXPORTER_GRPC_ENABLE:true}
+  targetHost: ${SW_EXPORTER_GRPC_HOST:otel-collector}
+  targetPort: ${SW_EXPORTER_GRPC_PORT:11801}
+  bufferSize: ${SW_EXPORTER_GRPC_BUFFER_SIZE:10000}
+
+# Enable trace export
+trace:
+  enable: ${SW_EXPORTER_TRACE_ENABLE:true}
+  bufferChannelSize: ${SW_EXPORTER_TRACE_BUFFER_SIZE:5000}
+  # Export sample rate: 100 = 100% (export all traces)
+  # For high volume, reduce to 10 (10%) or 1 (1%)
+  sampleRate: ${SW_EXPORTER_TRACE_SAMPLE_RATE:100}
+
+# Enable metrics export (optional)
+metrics:
+  enable: ${SW_EXPORTER_METRICS_ENABLE:false}
+
+# Enable log export (optional)
+log:
+  enable: ${SW_EXPORTER_LOG_ENABLE:false}

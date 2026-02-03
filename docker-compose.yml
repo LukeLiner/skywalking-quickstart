@@ -25,6 +25,12 @@ services:
       - SW_JDBC_URL=jdbc:mysql://mysql:3306/skywalking?useSSL=false&serverTimezone=GMT&allowPublicKeyRetrieval=true
       - SW_DATA_SOURCE_USER=root
       - SW_DATA_SOURCE_PASSWORD=root
+      # Exporter configuration
+      - SW_EXPORTER_GRPC_ENABLE=true
+      - SW_EXPORTER_GRPC_HOST=otel-collector
+      - SW_EXPORTER_GRPC_PORT=11801
+      - SW_EXPORTER_TRACE_ENABLE=true
+      - SW_EXPORTER_TRACE_SAMPLE_RATE=100
     healthcheck:
       test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/12800"]
       interval: 30s
@@ -204,13 +210,16 @@ services:
     depends_on:
       - opensearch
 
-  # OpenTelemetry Collector for log collection
+  # OpenTelemetry Collector for logs, metrics, and traces
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     ports:
-      - "8889:8889"  # Prometheus metrics endpoint
+      - "4317:4317"    # OTLP gRPC receiver
+      - "4318:4318"    # OTLP HTTP receiver
+      - "11801:11801"  # SkyWalking receiver (from OAP exporter)
+      - "8889:8889"    # Prometheus metrics endpoint
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
       - app-logs:/var/log/apps:ro
@@ -222,7 +231,7 @@ services:
       - xiaozhou-order
       - xiaozhou-product
 
-  # Data Prepper for metrics ingestion to OpenSearch
+  # Data Prepper for metrics and traces ingestion to OpenSearch
   data-prepper:
     image: opensearchproject/data-prepper:2.6.1
     container_name: data-prepper
@@ -230,6 +239,7 @@ services:
       - ./data-prepper/pipelines.yaml:/usr/share/data-prepper/pipelines/pipelines.yaml
       - ./data-prepper/data-prepper-config.yaml:/usr/share/data-prepper/config/data-prepper-config.yaml
     ports:
+      - "21890:21890"  # OTel trace source
       - "21891:21891"  # OTel metrics source
     networks:
       - skywalking-net
