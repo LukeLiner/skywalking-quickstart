@@ -1,11 +1,13 @@
 receivers:
-  # SkyWalking receiver (from SkyWalking OAP exporter)
+  # SkyWalking receiver - accepts SkyWalking agent protocol and converts to OTLP
   skywalking:
     protocols:
       grpc:
-        endpoint: 0.0.0.0:11801
+        endpoint: 0.0.0.0:11800
+      http:
+        endpoint: 0.0.0.0:12800
 
-  # OTLP receiver for traces
+  # OTLP receiver for traces (if needed for other sources)
   otlp:
     protocols:
       grpc:
@@ -128,10 +130,11 @@ service:
       processors: [batch, resource]
       exporters: [otlp/dataprepper-metrics, prometheus]
     
+    # Traces pipeline - receives from SkyWalking agents
     traces:
-      receivers: [otlp, skywalking]
+      receivers: [skywalking, otlp]
       processors: [batch, resource]
-      exporters: [otlp/dataprepper-traces]
+      exporters: [otlp/dataprepper-traces, debug]
   
   telemetry:
     logs:

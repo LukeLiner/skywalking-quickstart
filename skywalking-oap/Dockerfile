@@ -1,10 +1,7 @@
-# SkyWalking OAP with MySQL driver and Exporter configuration
+# SkyWalking OAP with MySQL driver and Kafka fetcher configuration
 FROM apache/skywalking-oap-server:9.3.0
 
-# Download MySQL Connector/J using curl
-ENV MYSQL_CONNECTOR_VERSION=8.0.28
-RUN curl -L https://repo1.maven.org/maven2/mysql/mysql-connector-java/${MYSQL_CONNECTOR_VERSION}/mysql-connector-java-${MYSQL_CONNECTOR_VERSION}.jar \
-    -o /skywalking/oap-libs/mysql-connector-java-${MYSQL_CONNECTOR_VERSION}.jar
+# Copy pre-downloaded MySQL Connector/J (avoid network issues during build)
+COPY skywalking-oap/mysql-connector-java-8.0.28.jar /skywalking/oap-libs/mysql-connector-java-8.0.28.jar
 
-# Copy custom exporter configuration
-COPY skywalking-oap/exporter.yaml /skywalking/config/exporter.yaml
+# Use default application.yml - configure via environment variables instead

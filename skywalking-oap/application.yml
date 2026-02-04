@@ -1,0 +1,149 @@
+# SkyWalking OAP Server Application Configuration
+# This file overrides default application.yml for exporter support
+
+cluster:
+  selector: ${SW_CLUSTER:standalone}
+  standalone:
+
+core:
+  selector: ${SW_CORE:default}
+  default:
+    role: ${SW_CORE_ROLE:Mixed}
+    restHost: ${SW_CORE_REST_HOST:0.0.0.0}
+    restPort: ${SW_CORE_REST_PORT:12800}
+    restContextPath: ${SW_CORE_REST_CONTEXT_PATH:/}
+    gRPCHost: ${SW_CORE_GRPC_HOST:0.0.0.0}
+    gRPCPort: ${SW_CORE_GRPC_PORT:11800}
+    maxConcurrentCallsPerConnection: ${SW_CORE_GRPC_MAX_CONCURRENT_CALL:0}
+    maxMessageSize: ${SW_CORE_GRPC_MAX_MESSAGE_SIZE:0}
+    # Records TTL
+    recordDataTTL: ${SW_CORE_RECORD_DATA_TTL:3}
+    # Metrics TTL
+    metricsDataTTL: ${SW_CORE_METRICS_DATA_TTL:7}
+    # Enable endpoint name grouping
+    enableEndpointNameGroupingByOpenapi: ${SW_CORE_ENABLE_ENDPOINT_NAME_GROUPING_BY_OPENAPI:true}
+
+storage:
+  selector: ${SW_STORAGE:mysql}
+  mysql:
+    properties:
+      jdbcUrl: ${SW_JDBC_URL:jdbc:mysql://mysql:3306/skywalking?useSSL=false&serverTimezone=GMT&allowPublicKeyRetrieval=true}
+      dataSource.user: ${SW_DATA_SOURCE_USER:root}
+      dataSource.password: ${SW_DATA_SOURCE_PASSWORD:root}
+      dataSource.cachePrepStmts: ${SW_DATA_SOURCE_CACHE_PREP_STMTS:true}
+      dataSource.prepStmtCacheSize: ${SW_DATA_SOURCE_PREP_STMT_CACHE_SIZE:250}
+      dataSource.prepStmtCacheSqlLimit: ${SW_DATA_SOURCE_PREP_STMT_CACHE_SQL_LIMIT:2048}
+      dataSource.useServerPrepStmts: ${SW_DATA_SOURCE_USE_SERVER_PREP_STMTS:true}
+    metadataQueryMaxSize: ${SW_STORAGE_MAX_SIZE_OF_BATCH_SQL:2000}
+    maxSizeOfBatchSql: ${SW_STORAGE_MAX_SIZE_OF_BATCH_SQL:2000}
+    asyncBatchPersistentPoolSize: ${SW_STORAGE_ASYNC_BATCH_PERSISTENT_POOL_SIZE:4}
+
+# ============== KAFKA FETCHER MODULE ==============
+# Receive trace/metrics data from Kafka (agents report to Kafka)
+kafka-fetcher:
+  selector: ${SW_KAFKA_FETCHER:default}
+  default:
+    bootstrapServers: ${SW_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    namespace: ${SW_NAMESPACE:""}
+    # Consumer group
+    groupId: ${SW_KAFKA_FETCHER_GROUP_ID:skywalking-oap}
+    # Enable partition assignment 
+    consumePartitions: ${SW_KAFKA_FETCHER_CONSUME_PARTITIONS:""}
+    # Topics for different data types
+    topicNameOfTracingSegments: ${SW_KAFKA_FETCHER_TOPIC_TRACING:skywalking-segments}
+    topicNameOfMetrics: ${SW_KAFKA_FETCHER_TOPIC_METRICS:skywalking-metrics}
+    topicNameOfProfiling: ${SW_KAFKA_FETCHER_TOPIC_PROFILING:skywalking-profilings}
+    topicNameOfManagement: ${SW_KAFKA_FETCHER_TOPIC_MANAGEMENT:skywalking-managements}
+    topicNameOfMeters: ${SW_KAFKA_FETCHER_TOPIC_METERS:skywalking-meters}
+    topicNameOfLogs: ${SW_KAFKA_FETCHER_TOPIC_LOGS:skywalking-logs}
+    # Enable native log format
+    enableNativeProtoLog: ${SW_KAFKA_FETCHER_ENABLE_NATIVE_PROTO_LOG:true}
+    enableNativeJsonLog: ${SW_KAFKA_FETCHER_ENABLE_NATIVE_JSON_LOG:false}
+    # Consumer config
+    kafkaConsumerConfig:
+      auto.offset.reset: ${SW_KAFKA_CONSUMER_AUTO_OFFSET_RESET:latest}
+      enable.auto.commit: ${SW_KAFKA_CONSUMER_ENABLE_AUTO_COMMIT:true}
+
+receiver-sharing-server:
+  selector: ${SW_RECEIVER_SHARING_SERVER:default}
+  default:
+
+receiver-register:
+  selector: ${SW_RECEIVER_REGISTER:default}
+  default:
+
+receiver-trace:
+  selector: ${SW_RECEIVER_TRACE:default}
+  default:
+
+receiver-jvm:
+  selector: ${SW_RECEIVER_JVM:default}
+  default:
+
+receiver-clr:
+  selector: ${SW_RECEIVER_CLR:default}
+  default:
+
+receiver-profile:
+  selector: ${SW_RECEIVER_PROFILE:default}
+  default:
+
+receiver-meter:
+  selector: ${SW_RECEIVER_METER:default}
+  default:
+
+receiver-log:
+  selector: ${SW_RECEIVER_LOG:default}
+  default:
+
+receiver-browser:
+  selector: ${SW_RECEIVER_BROWSER:default}
+  default:
+
+service-mesh:
+  selector: ${SW_SERVICE_MESH:default}
+  default:
+
+envoy-metric:
+  selector: ${SW_ENVOY_METRIC:default}
+  default:
+
+query:
+  selector: ${SW_QUERY:graphql}
+  graphql:
+
+alarm:
+  selector: ${SW_ALARM:default}
+  default:
+
+telemetry:
+  selector: ${SW_TELEMETRY:prometheus}
+  prometheus:
+    host: ${SW_TELEMETRY_PROMETHEUS_HOST:0.0.0.0}
+    port: ${SW_TELEMETRY_PROMETHEUS_PORT:1234}
+
+configuration:
+  selector: ${SW_CONFIGURATION:none}
+  none:
+
+health-checker:
+  selector: ${SW_HEALTH_CHECKER:default}
+  default:
+
+configuration-discovery:
+  selector: ${SW_CONFIGURATION_DISCOVERY:default}
+  default:
+
+event-analyzer:
+  selector: ${SW_EVENT_ANALYZER:default}
+  default:
+
+receiver-event:
+  selector: ${SW_RECEIVER_EVENT:default}
+  default:
+
+log-analyzer:
+  selector: ${SW_LOG_ANALYZER:default}
+  default:
+    lalFiles: ${SW_LOG_LAL_FILES:default}
+    malFiles: ${SW_LOG_MAL_FILES:""}

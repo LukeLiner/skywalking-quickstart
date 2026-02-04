@@ -1,7 +1,9 @@
 # Data Prepper Pipeline Configuration
-# Metrics + Traces to OpenSearch
+# OTLP Traces + Metrics to OpenSearch
+# NOTE: SkyWalking Kafka format (protobuf) is NOT compatible with Data Prepper's Kafka source
+# Traces from SkyWalking need to go through OTel Collector (skywalking receiver)
 
-# ============== Metrics Pipeline ==============
+# ============== Metrics Pipeline (from OTel Collector) ==============
 otel-metrics-pipeline:
   source:
     otel_metrics_source:
@@ -21,7 +23,7 @@ otel-metrics-pipeline:
         index: "metrics-otel-%{yyyy.MM.dd}"
         bulk_size: 4
 
-# ============== Trace Pipeline ==============
+# ============== OTel Trace Pipeline ==============
 # Entry pipeline: receive OTLP traces
 entry-pipeline:
   source:

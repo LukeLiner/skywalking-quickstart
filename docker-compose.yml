@@ -12,25 +12,21 @@ services:
     networks:
       - skywalking-net
 
+  # SkyWalking OAP - NOT receiving agent traces in Full OTel mode
+  # Agents report to OTel Collector instead
   skywalking-oap:
     build:
       context: .
       dockerfile: skywalking-oap/Dockerfile
     container_name: skywalking-oap
     ports:
-      - "11800:11800"
-      - "12800:12800"
+      - "11801:11800"  # Changed to avoid conflict with otel-collector
+      - "12801:12800"  # Changed to avoid conflict with otel-collector
     environment:
       - SW_STORAGE=mysql
       - SW_JDBC_URL=jdbc:mysql://mysql:3306/skywalking?useSSL=false&serverTimezone=GMT&allowPublicKeyRetrieval=true
       - SW_DATA_SOURCE_USER=root
       - SW_DATA_SOURCE_PASSWORD=root
-      # Exporter configuration
-      - SW_EXPORTER_GRPC_ENABLE=true
-      - SW_EXPORTER_GRPC_HOST=otel-collector
-      - SW_EXPORTER_GRPC_PORT=11801
-      - SW_EXPORTER_TRACE_ENABLE=true
-      - SW_EXPORTER_TRACE_SAMPLE_RATE=100
     healthcheck:
       test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/12800"]
       interval: 30s
@@ -73,6 +69,49 @@ services:
       timeout: 20s
       retries: 10
 
+  # ============== Kafka Infrastructure ==============
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - skywalking-net
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - skywalking-net
+
   xiaozhou-order:
     build:
       context: .
@@ -86,13 +125,14 @@ services:
     environment:
       - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
       - SW_AGENT_NAME=xiaozhou-order
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
+      # Report to OTel Collector (Full OTel mode - no SkyWalking OAP)
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
     depends_on:
-      - nacos
-      - skywalking-oap
+      nacos:
+        condition: service_started
     networks:
       - skywalking-net
 
@@ -112,7 +152,8 @@ services:
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
       - SW_AGENT_NAME=xiaozhou-product
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
+      # Report to OTel Collector (Full OTel mode - no SkyWalking OAP)
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -120,8 +161,6 @@ services:
       mysql:
         condition: service_healthy
       nacos:
-        condition: service_started
-      skywalking-oap:
         condition: service_started
     networks:
       - skywalking-net
@@ -218,7 +257,8 @@ services:
     ports:
       - "4317:4317"    # OTLP gRPC receiver
       - "4318:4318"    # OTLP HTTP receiver
-      - "11801:11801"  # SkyWalking receiver (from OAP exporter)
+      - "11800:11800"  # SkyWalking gRPC receiver (agents report here)
+      - "12800:12800"  # SkyWalking HTTP receiver
       - "8889:8889"    # Prometheus metrics endpoint
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
@@ -244,7 +284,10 @@ services:
     networks:
       - skywalking-net
     depends_on:
-      - opensearch
+      opensearch:
+        condition: service_started
+      kafka:
+        condition: service_healthy
     restart: always
 
 networks:
