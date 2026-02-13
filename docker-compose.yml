@@ -6,6 +6,13 @@ services:
     container_name: nacos-standalone
     environment:
       - MODE=standalone
+      - PREFER_HOST_MODE=hostname
+      - JVM_XMS=256m
+      - JVM_XMX=256m
+      - JVM_XMN=128m
+    volumes:
+      - nacos-logs:/home/nacos/logs
+      - nacos-data:/home/nacos/data
     ports:
       - "8848:8848"
       - "9848:9848" # gRPC port for Nacos 2.x
@@ -298,3 +305,5 @@ volumes:
   grafana-storage:
   opensearch-data:
   app-logs:
+  nacos-logs:
+  nacos-data:
