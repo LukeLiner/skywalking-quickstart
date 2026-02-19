@@ -1,5 +1,8 @@
 # Use pre-built JAR from local build
-FROM openjdk:8-jdk-alpine
+FROM eclipse-temurin:8-jre-alpine
+
+# Install required tools
+RUN apk add --no-cache wget tar
 WORKDIR /app
 
 # Download SkyWalking Agent
@@ -7,6 +10,9 @@ ENV SW_AGENT_VERSION=9.5.0
 RUN wget https://archive.apache.org/dist/skywalking/java-agent/$SW_AGENT_VERSION/apache-skywalking-java-agent-$SW_AGENT_VERSION.tgz && \
     tar -zxvf apache-skywalking-java-agent-$SW_AGENT_VERSION.tgz && \
     rm apache-skywalking-java-agent-$SW_AGENT_VERSION.tgz
+
+# Enable Kafka Reporter Plugin
+RUN cp /app/skywalking-agent/optional-reporter-plugins/kafka-reporter-plugin-*.jar /app/skywalking-agent/plugins/
 
 # Create log directory
 RUN mkdir -p /var/log/apps/xiaozhou-product

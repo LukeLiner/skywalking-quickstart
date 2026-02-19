@@ -1,0 +1,4 @@
+D:\code\skywalking-quickstart\format-converter\src\main\java\com\converter\config\KafkaConfig.java
+D:\code\skywalking-quickstart\format-converter\src\main\java\com\converter\FormatConverterApplication.java
+D:\code\skywalking-quickstart\format-converter\src\main\java\com\converter\service\TraceConversionService.java
+D:\code\skywalking-quickstart\format-converter\src\main\java\com\converter\converter\SkyWalkingToOtlpConverter.java

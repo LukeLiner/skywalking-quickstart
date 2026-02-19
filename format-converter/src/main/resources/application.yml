@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: format-converter
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+
+converter:
+  input:
+    topic: ${INPUT_TOPIC:sw-traces}
+  output:
+    topic: ${OUTPUT_TOPIC:otlp-spans}
+    otlp_endpoint: ${OTLP_ENDPOINT:http://otel-collector:4317}
+  consumer:
+    group-id: ${CONSUMER_GROUP_ID:format-converter}
+
+logging:
+  level:
+    root: INFO
+    com.converter: DEBUG

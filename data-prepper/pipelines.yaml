@@ -1,7 +1,5 @@
 # Data Prepper Pipeline Configuration
 # OTLP Traces + Metrics to OpenSearch
-# NOTE: SkyWalking Kafka format (protobuf) is NOT compatible with Data Prepper's Kafka source
-# Traces from SkyWalking need to go through OTel Collector (skywalking receiver)
 
 # ============== Metrics Pipeline (from OTel Collector) ==============
 otel-metrics-pipeline:
@@ -11,8 +9,8 @@ otel-metrics-pipeline:
       ssl: false
   buffer:
     bounded_blocking:
-      buffer_size: 1024
-      batch_size: 256
+      buffer_size: 5120
+      batch_size: 512
   processor:
     - otel_metrics_raw_processor:
   sink:
@@ -21,7 +19,8 @@ otel-metrics-pipeline:
           - "http://opensearch:9200"
         index_type: custom
         index: "metrics-otel-%{yyyy.MM.dd}"
-        bulk_size: 4
+        bulk_size: 20
+        flush_timeout: 30
 
 # ============== OTel Trace Pipeline ==============
 # Entry pipeline: receive OTLP traces
@@ -32,8 +31,8 @@ entry-pipeline:
       ssl: false
   buffer:
     bounded_blocking:
-      buffer_size: 25600
-      batch_size: 400
+      buffer_size: 51200
+      batch_size: 800
   sink:
     - pipeline:
         name: "raw-trace-pipeline"
@@ -47,8 +46,8 @@ raw-trace-pipeline:
       name: "entry-pipeline"
   buffer:
     bounded_blocking:
-      buffer_size: 25600
-      batch_size: 400
+      buffer_size: 51200
+      batch_size: 800
   processor:
     - otel_trace_raw:
   sink:
@@ -56,6 +55,8 @@ raw-trace-pipeline:
         hosts:
           - "http://opensearch:9200"
         index_type: trace-analytics-raw
+        bulk_size: 20
+        flush_timeout: 30
 
 # Service map pipeline
 service-map-pipeline:
@@ -64,8 +65,8 @@ service-map-pipeline:
       name: "entry-pipeline"
   buffer:
     bounded_blocking:
-      buffer_size: 25600
-      batch_size: 400
+      buffer_size: 51200
+      batch_size: 800
   processor:
     - service_map_stateful:
         window_duration: 180
@@ -74,3 +75,5 @@ service-map-pipeline:
         hosts:
           - "http://opensearch:9200"
         index_type: trace-analytics-service-map
+        bulk_size: 20
+        flush_timeout: 30

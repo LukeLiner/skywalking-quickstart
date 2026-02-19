@@ -43,15 +43,18 @@ storage:
 kafka-fetcher:
   selector: ${SW_KAFKA_FETCHER:default}
   default:
-    bootstrapServers: ${SW_KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    bootstrapServers: kafka:9092
     namespace: ${SW_NAMESPACE:""}
     # Consumer group
     groupId: ${SW_KAFKA_FETCHER_GROUP_ID:skywalking-oap}
+    # Topic replication factor (set to 1 for single broker)
+    replicationFactor: ${SW_KAFKA_FETCHER_REPLICATION_FACTOR:1}
+    partitions: ${SW_KAFKA_FETCHER_PARTITIONS:3}
     # Enable partition assignment 
     consumePartitions: ${SW_KAFKA_FETCHER_CONSUME_PARTITIONS:""}
     # Topics for different data types
-    topicNameOfTracingSegments: ${SW_KAFKA_FETCHER_TOPIC_TRACING:skywalking-segments}
-    topicNameOfMetrics: ${SW_KAFKA_FETCHER_TOPIC_METRICS:skywalking-metrics}
+    topicNameOfTracingSegments: ${SW_KAFKA_FETCHER_TOPIC_TRACING:sw-traces}
+    topicNameOfMetrics: ${SW_KAFKA_FETCHER_TOPIC_METRICS:sw-metrics}
     topicNameOfProfiling: ${SW_KAFKA_FETCHER_TOPIC_PROFILING:skywalking-profilings}
     topicNameOfManagement: ${SW_KAFKA_FETCHER_TOPIC_MANAGEMENT:skywalking-managements}
     topicNameOfMeters: ${SW_KAFKA_FETCHER_TOPIC_METERS:skywalking-meters}
@@ -63,6 +66,17 @@ kafka-fetcher:
     kafkaConsumerConfig:
       auto.offset.reset: ${SW_KAFKA_CONSUMER_AUTO_OFFSET_RESET:latest}
       enable.auto.commit: ${SW_KAFKA_CONSUMER_ENABLE_AUTO_COMMIT:true}
+
+# ============== AGENT ANALYZER MODULE ==============
+agent-analyzer:
+  selector: ${SW_AGENT_ANALYZER:default}
+  default:
+    traceSamplingPolicySettingsFile: ${SW_TRACE_SAMPLING_POLICY_SETTINGS_FILE:trace-sampling-policy-settings.yml}
+    slowDBAccessThreshold: ${SW_SLOW_DB_THRESHOLD:default:200,mongodb:100}
+    forceSampleErrorSegment: ${SW_FORCE_SAMPLE_ERROR_SEGMENT:true}
+    segmentStatusAnalysisStrategy: ${SW_SEGMENT_STATUS_ANALYSIS_STRATEGY:FROM_SPAN_STATUS}
+    noUpstreamRealAddressAgents: ${SW_NO_UPSTREAM_REAL_ADDRESS:6000,9000}
+    meterAnalyzerActiveFiles: ${SW_METER_ANALYZER_ACTIVE_FILES:spring-sleuth.yaml,datasource.yaml}
 
 receiver-sharing-server:
   selector: ${SW_RECEIVER_SHARING_SERVER:default}

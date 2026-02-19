@@ -1,12 +1,4 @@
 receivers:
-  # SkyWalking receiver - accepts SkyWalking agent protocol and converts to OTLP
-  skywalking:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:11800
-      http:
-        endpoint: 0.0.0.0:12800
-
   # OTLP receiver for traces (if needed for other sources)
   otlp:
     protocols:
@@ -67,7 +59,8 @@ receivers:
           scrape_interval: 30s
           static_configs:
             - targets: ['cadvisor:8080']
-
+# 对数据进行预处理和增强。
+# 将数据分批发送，提高效率。每批最多 1024 条，或等待 10 秒后发送。
 processors:
   batch:
     timeout: 10s
@@ -117,7 +110,7 @@ exporters:
     verbosity: detailed
     sampling_initial: 5
     sampling_thereafter: 200
-
+# 定义了三个数据处理管道，分别负责日志、指标和追踪。
 service:
   pipelines:
     logs:
@@ -130,9 +123,9 @@ service:
       processors: [batch, resource]
       exporters: [otlp/dataprepper-metrics, prometheus]
     
-    # Traces pipeline - receives from SkyWalking agents
+    # Traces pipeline - receives OTLP traces from OTLP receiver
     traces:
-      receivers: [skywalking, otlp]
+      receivers: [otlp]
       processors: [batch, resource]
       exporters: [otlp/dataprepper-traces, debug]
   

@@ -27,13 +27,22 @@ services:
       dockerfile: skywalking-oap/Dockerfile
     container_name: skywalking-oap
     ports:
-      - "11801:11800"  # Changed to avoid conflict with otel-collector
-      - "12801:12800"  # Changed to avoid conflict with otel-collector
+      - "11800:11800"  # gRPC port for agents
+      - "12800:12800"  # HTTP port for UI
     environment:
       - SW_STORAGE=mysql
       - SW_JDBC_URL=jdbc:mysql://mysql:3306/skywalking?useSSL=false&serverTimezone=GMT&allowPublicKeyRetrieval=true
       - SW_DATA_SOURCE_USER=root
       - SW_DATA_SOURCE_PASSWORD=root
+      # Kafka Fetcher Configuration - consume from Kafka
+      - SW_KAFKA_FETCHER=default
+      - SW_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - SW_KAFKA_FETCHER_GROUP_ID=skywalking-oap
+      - SW_KAFKA_FETCHER_TOPIC_TRACING=sw-traces
+      - SW_KAFKA_FETCHER_TOPIC_METRICS=sw-metrics
+      - SW_KAFKA_FETCHER_ENABLE_NATIVE_PROTO_LOG=true
+      # Kafka Producer Config (for admin client)
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
     healthcheck:
       test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/12800"]
       interval: 30s
@@ -44,6 +53,8 @@ services:
       - skywalking-net
     depends_on:
       mysql:
+        condition: service_healthy
+      kafka:
         condition: service_healthy
 
   skywalking-ui:
@@ -117,7 +128,8 @@ services:
       retries: 10
       start_period: 30s
     networks:
-      - skywalking-net
+      skywalking-net:
+        ipv4_address: 172.20.0.10
 
   xiaozhou-order:
     build:
@@ -132,14 +144,23 @@ services:
     environment:
       - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
       - SW_AGENT_NAME=xiaozhou-order
-      # Report to OTel Collector (Full OTel mode - no SkyWalking OAP)
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
+      # Enable trace sampling (1 sample per 3 seconds)
+      - SW_AGENT_SAMPLE=1
+      # Enable Kafka reporter to send data to Kafka
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=kafka:9092
+      - SW_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      # Configure Kafka topic to match OAP Kafka Fetcher
+      - SW_PLUGIN_KAFKA_TOPIC_SEGMENT=sw-traces
+      - SW_PLUGIN_KAFKA_TOPIC_METRICS=sw-metrics
+      - JAVA_OPTS=-DSW_AGENT_COLLECTOR_BACKEND_SERVICES=kafka:9092
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
     depends_on:
       nacos:
         condition: service_started
+      kafka:
+        condition: service_healthy
     networks:
       - skywalking-net
 
@@ -159,8 +180,15 @@ services:
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
       - SW_AGENT_NAME=xiaozhou-product
-      # Report to OTel Collector (Full OTel mode - no SkyWalking OAP)
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
+      # Enable trace sampling (1 sample per 3 seconds)
+      - SW_AGENT_SAMPLE=1
+      # Enable Kafka reporter to send data to Kafka
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=kafka:9092
+      - SW_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      # Configure Kafka topic to match OAP Kafka Fetcher
+      - SW_PLUGIN_KAFKA_TOPIC_SEGMENT=sw-traces
+      - SW_PLUGIN_KAFKA_TOPIC_METRICS=sw-metrics
+      - JAVA_OPTS=-DSW_AGENT_COLLECTOR_BACKEND_SERVICES=kafka:9092
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -169,6 +197,8 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
+      kafka:
+        condition: service_healthy
     networks:
       - skywalking-net
 
@@ -264,8 +294,8 @@ services:
     ports:
       - "4317:4317"    # OTLP gRPC receiver
       - "4318:4318"    # OTLP HTTP receiver
-      - "11800:11800"  # SkyWalking gRPC receiver (agents report here)
-      - "12800:12800"  # SkyWalking HTTP receiver
+      # - "11800:11800"  # SkyWalking gRPC receiver (agents report here)
+      # - "12800:12800"  # SkyWalking HTTP receiver
       - "8889:8889"    # Prometheus metrics endpoint
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
@@ -297,9 +327,29 @@ services:
         condition: service_healthy
     restart: always
 
+  # Format Converter: SkyWalking format -> OTLP format
+  format-converter:
+    build:
+      context: ./format-converter
+    container_name: format-converter
+    environment:
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - INPUT_TOPIC=sw-traces
+      - OUTPUT_TOPIC=otlp-spans
+      - CONSUMER_GROUP_ID=format-converter
+    networks:
+      - skywalking-net
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: always
+
 networks:
   skywalking-net:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
 
 volumes:
   grafana-storage:
