@@ -22,9 +22,31 @@ core:
     metricsDataTTL: ${SW_CORE_METRICS_DATA_TTL:7}
     # Enable endpoint name grouping
     enableEndpointNameGroupingByOpenapi: ${SW_CORE_ENABLE_ENDPOINT_NAME_GROUPING_BY_OPENAPI:true}
+    # Disable AI pipeline
+    enableAIPipeline: ${SW_CORE_ENABLE_AI_PIPELINE:false}
 
 storage:
-  selector: ${SW_STORAGE:mysql}
+  selector: ${SW_STORAGE:elasticsearch}
+  elasticsearch:
+    # Use OpenSearch as storage backend
+    clusterNodes: ${SW_STORAGE_ES_CLUSTER_NODES:opensearch:9200}
+    # When DISABLE_SECURITY_PLUGIN=true, no auth required
+    # user: admin
+    # password: admin
+    protocol: ${SW_STORAGE_ES_HTTP_PROTOCOL:"http"}
+    namespace: ${SW_NAMESPACE:"my_skywalking"}
+    indexShardsNumber: ${SW_STORAGE_ES_INDEX_SHARDS:2}
+    indexReplicasNumber: ${SW_STORAGE_ES_INDEX_REPLICAS:0}  # For single-node cluster
+    bulkActions: ${SW_STORAGE_ES_BULK_ACTIONS:5000}
+    flushInterval: ${SW_STORAGE_ES_FLUSH_INTERVAL:10}
+    concurrentRequests: ${SW_STORAGE_ES_CONCURRENT_REQUESTS:2}
+    resultWindowMaxSize: ${SW_STORAGE_ES_RESULT_WINDOW_MAX_SIZE:10000}
+    metadataQueryMaxSize: ${SW_STORAGE_ES_METADATA_QUERY_MAX_SIZE:10000}
+    segmentQueryMaxSize: ${SW_STORAGE_ES_SEGMENT_QUERY_MAX_SIZE:200}
+    profileTaskQueryMaxSize: ${SW_STORAGE_ES_PROFILE_TASK_QUERY_MAX_SIZE:200}
+    putMappingTimeout: ${SW_STORAGE_ES_PUT_MAPPING_TIMEOUT:30}
+    createIndexTimeout: ${SW_STORAGE_ES_CREATE_INDEX_TIMEOUT:30}
+    queryMaxSize: ${SW_STORAGE_ES_QUERY_MAX_SIZE:10000}
   mysql:
     properties:
       jdbcUrl: ${SW_JDBC_URL:jdbc:mysql://mysql:3306/skywalking?useSSL=false&serverTimezone=GMT&allowPublicKeyRetrieval=true}
@@ -161,3 +183,4 @@ log-analyzer:
   default:
     lalFiles: ${SW_LOG_LAL_FILES:default}
     malFiles: ${SW_LOG_MAL_FILES:""}
+

@@ -15,21 +15,7 @@
     </appender>
 
 
-    <!-- File Appender for OTel Filelog collection (JSON format) -->
-    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>/var/log/apps/xiaozhou-product/application.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>/var/log/apps/xiaozhou-product/application-%d{yyyy-MM-dd}.log</fileNamePattern>
-            <maxHistory>7</maxHistory>
-            <totalSizeCap>1GB</totalSizeCap>
-        </rollingPolicy>
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <includeMdcKeyName>tid</includeMdcKeyName>
-            <includeMdcKeyName>spanId</includeMdcKeyName>
-        </encoder>
-    </appender>
-
-
+    <!-- SkyWalking gRPC log appender - 直接发送到 SkyWalking OAP -->
     <appender name="grpc-log" class="org.apache.skywalking.apm.toolkit.log.logback.v1.x.log.GRPCLogClientAppender">
         <encoder class="ch.qos.logback.core.encoder.LayoutWrappingEncoder">
             <layout class="org.apache.skywalking.apm.toolkit.log.logback.v1.x.mdc.TraceIdMDCPatternLogbackLayout">
@@ -42,7 +28,6 @@
     <!-- 设置 Appender -->
     <root level="INFO">
         <appender-ref ref="console"/>
-        <appender-ref ref="FILE"/>
         <appender-ref ref="grpc-log"/>
     </root>
 

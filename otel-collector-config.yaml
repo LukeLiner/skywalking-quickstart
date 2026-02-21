@@ -7,33 +7,6 @@ receivers:
       http:
         endpoint: 0.0.0.0:4318
 
-  # File log receiver
-  filelog:
-    include:
-      - /var/log/apps/xiaozhou-order/*.log
-      - /var/log/apps/xiaozhou-product/*.log
-    start_at: end
-    operators:
-      - type: json_parser
-        timestamp:
-          parse_from: attributes["@timestamp"]
-          layout: '%Y-%m-%dT%H:%M:%S.%LZ'
-      - type: regex_parser
-        regex: '/var/log/apps/(?P<service_name>[^/]+)/'
-        parse_from: attributes["log.file.path"]
-      - type: move
-        from: attributes.service_name
-        to: resource["service.name"]
-      - type: move
-        from: attributes.level
-        to: attributes["log.level"]
-      - type: move
-        from: attributes.thread_name
-        to: attributes["thread.name"]
-      - type: move
-        from: attributes.logger_name
-        to: attributes["logger.name"]
-
   # Prometheus receiver (scrape metrics)
   prometheus:
     config:
@@ -77,18 +50,6 @@ processors:
     timeout: 5s
 
 exporters:
-  # OpenSearch exporter for logs
-  opensearch/logs:
-    logs_index: logs-otel
-    http:
-      endpoint: http://opensearch:9200
-      timeout: 30s
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
-  
   # OTLP exporter to Data Prepper (for metrics)
   otlp/dataprepper-metrics:
     endpoint: data-prepper:21891
@@ -100,34 +61,19 @@ exporters:
     endpoint: data-prepper:21890
     tls:
       insecure: true
-  
-  # Prometheus exporter (keep existing Prometheus/Grafana)
-  prometheus:
-    endpoint: "0.0.0.0:8889"
-  
-  # Debug exporter
-  debug:
-    verbosity: detailed
-    sampling_initial: 5
-    sampling_thereafter: 200
-# 定义了三个数据处理管道，分别负责日志、指标和追踪。
+# 定义了两个数据处理管道，分别负责指标和追踪（日志已通过grpc-log直接发送到SkyWalking OAP，指标已同步到OpenSearch）
 service:
   pipelines:
-    logs:
-      receivers: [filelog]
-      processors: [batch, resource, resourcedetection]
-      exporters: [opensearch/logs, debug]
-    
     metrics:
       receivers: [prometheus]
       processors: [batch, resource]
-      exporters: [otlp/dataprepper-metrics, prometheus]
+      exporters: [otlp/dataprepper-metrics]
     
     # Traces pipeline - receives OTLP traces from OTLP receiver
     traces:
       receivers: [otlp]
       processors: [batch, resource]
-      exporters: [otlp/dataprepper-traces, debug]
+      exporters: [otlp/dataprepper-traces]
   
   telemetry:
     logs:

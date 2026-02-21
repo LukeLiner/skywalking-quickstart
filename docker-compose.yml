@@ -30,10 +30,13 @@ services:
       - "11800:11800"  # gRPC port for agents
       - "12800:12800"  # HTTP port for UI
     environment:
-      - SW_STORAGE=mysql
-      - SW_JDBC_URL=jdbc:mysql://mysql:3306/skywalking?useSSL=false&serverTimezone=GMT&allowPublicKeyRetrieval=true
-      - SW_DATA_SOURCE_USER=root
-      - SW_DATA_SOURCE_PASSWORD=root
+      - SW_STORAGE=elasticsearch
+      - SW_STORAGE_ES_CLUSTER_NODES=opensearch:9200
+      # When DISABLE_SECURITY_PLUGIN=true, no auth required
+      # - SW_STORAGE_ES_USER=admin
+      # - SW_STORAGE_ES_PASSWORD=admin
+      - SW_STORAGE_ES_INDEX_REPLICAS=0
+      - SW_STORAGE_ES_INDEX_SHARDS=2
       # Kafka Fetcher Configuration - consume from Kafka
       - SW_KAFKA_FETCHER=default
       - SW_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
@@ -52,13 +55,13 @@ services:
     networks:
       - skywalking-net
     depends_on:
-      mysql:
-        condition: service_healthy
+      opensearch:
+        condition: service_started
       kafka:
         condition: service_healthy
 
   skywalking-ui:
-    image: apache/skywalking-ui:9.3.0
+    image: apache/skywalking-ui:9.4.0
     container_name: skywalking-ui
     depends_on:
       skywalking-oap:
@@ -176,7 +179,7 @@ services:
       - "8090:8090"
     environment:
       - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
       - SW_AGENT_NAME=xiaozhou-product
@@ -202,22 +205,6 @@ services:
     networks:
       - skywalking-net
 
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-    networks:
-      - skywalking-net
-    depends_on:
-      - xiaozhou-order
-      - xiaozhou-product
-
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     container_name: cadvisor
@@ -231,24 +218,9 @@ services:
     networks:
       - skywalking-net
 
-  grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_SECURITY_ADMIN_USER=admin
-    volumes:
-      - grafana-storage:/var/lib/grafana
-    networks:
-      - skywalking-net
-    depends_on:
-      - prometheus
-
-  # OpenSearch for log storage
+  # OpenSearch for log/metrics/traces storage (official recommended version 2.8.0)
   opensearch:
-    image: opensearchproject/opensearch:2.11.0
+    image: opensearchproject/opensearch:2.8.0
     container_name: opensearch
     environment:
       - discovery.type=single-node
@@ -272,7 +244,7 @@ services:
 
   # OpenSearch Dashboards for visualization
   opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.11.0
+    image: opensearchproject/opensearch-dashboards:2.8.0
     container_name: opensearch-dashboards
     ports:
       - "5601:5601"
@@ -327,23 +299,6 @@ services:
         condition: service_healthy
     restart: always
 
-  # Format Converter: SkyWalking format -> OTLP format
-  format-converter:
-    build:
-      context: ./format-converter
-    container_name: format-converter
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - INPUT_TOPIC=sw-traces
-      - OUTPUT_TOPIC=otlp-spans
-      - CONSUMER_GROUP_ID=format-converter
-    networks:
-      - skywalking-net
-    depends_on:
-      kafka:
-        condition: service_healthy
-    restart: always
-
 networks:
   skywalking-net:
     driver: bridge
@@ -352,7 +307,6 @@ networks:
         - subnet: 172.20.0.0/16
 
 volumes:
-  grafana-storage:
   opensearch-data:
   app-logs:
   nacos-logs:
