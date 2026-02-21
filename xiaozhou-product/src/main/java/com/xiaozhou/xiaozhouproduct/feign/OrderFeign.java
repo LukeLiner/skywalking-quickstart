@@ -3,9 +3,10 @@ package com.xiaozhou.xiaozhouproduct.feign;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.stereotype.Component;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
-@FeignClient("xiaozhou-order")            //注册中心上的服务名
+@FeignClient(name = "xiaozhou-order", url = "http://xiaozhou-order:8089")
 public interface OrderFeign {
     @RequestMapping("/order/getOrder")
-    public String getOrderById(String id);
+    public String getOrderById(@RequestParam("id") String id);
 }

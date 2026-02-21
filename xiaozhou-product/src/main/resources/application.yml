@@ -27,6 +27,21 @@ feign:
         connectTimeout: 5000
         readTimeout: 5000
 
+# Ribbon load balancer configuration for Nacos
+ribbon:
+  # Connect timeout for Ribbon
+  ConnectTimeout: 3000
+  # Read timeout for Ribbon
+  ReadTimeout: 5000
+  # Whether to retry on connection failure
+  OkToRetryOnAllOperations: false
+  # Max retries for current instance
+  MaxAutoRetries: 0
+  # Max retries for next instance
+  MaxAutoRetriesNextServer: 1
+  # Interval to refresh server list from Nacos
+  ServerListRefreshInterval: 3000
+
 #????
 server:
   port: 8090
