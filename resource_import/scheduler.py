@@ -28,7 +28,7 @@ def job():
         from import_from_skywalking import main as sync_data
         # scheduler_interval: 执行频率
         # topology_minutes: 拓扑查询时间范围
-        sync_data(interval_minutes=_topology_minutes, clear_before_import=True)
+        sync_data(interval_minutes=_topology_minutes, clear_before_import=False)
         print("\nSync completed successfully")
     except Exception as e:
         print(f"\nSync failed: {e}")
