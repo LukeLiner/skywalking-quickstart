@@ -23,6 +23,7 @@ def import_services_from_sw(client, services):
     
     # 用于去重
     seen = set()
+    count = 0
     
     for service in services:
         name = service.get('name', 'unknown')
@@ -40,11 +41,12 @@ def import_services_from_sw(client, services):
             'source': 'skywalking'
         }
         
-        # 使用 CREATE 确保每个服务都创建
-        client.create_node('Service', props)
+        # 使用 MERGE 增量更新
+        client.merge_node('Service', {'name': name}, props)
         print(f"  ✓ Service: {name}")
+        count += 1
     
-    print(f"  共导入 {len(seen)} 个Service节点")
+    print(f"  共处理 {count} 个Service节点")
 
 
 def import_endpoints_from_sw(client, endpoints):
@@ -53,6 +55,7 @@ def import_endpoints_from_sw(client, endpoints):
     
     # 用于去重 - 确保相同名称+服务的端点只导入一次
     seen = set()
+    count = 0
     
     for endpoint in endpoints:
         service_name = endpoint.get('service_name', '')
@@ -78,14 +81,15 @@ def import_endpoints_from_sw(client, endpoints):
             'source': 'skywalking'
         }
         
-        # 使用 CREATE 而不是 MERGE
-        client.create_node('Endpoint', props)
+        # 使用 MERGE 增量更新
+        client.merge_node('Endpoint', {'name': display_name}, props)
         print(f"  ✓ Endpoint: {display_name}")
+        count += 1
     
-    print(f"  共导入 {len(seen)} 个Endpoint节点")
+    print(f"  共处理 {count} 个Endpoint节点")
 
 
-def import_relationships_from_sw(client, services, endpoints, dependencies):
+def import_relationships_from_sw(client, services, endpoints, dependencies, topology_nodes=None):
     """从SkyWalking导入关联关系"""
     print("\n🔗 开始导入关联关系...")
     
@@ -109,7 +113,7 @@ def import_relationships_from_sw(client, services, endpoints, dependencies):
             seen_rels.add(rel_key)
             
             try:
-                client.create_relationship(
+                client.merge_relationship(
                     'Service', service_name,
                     'Endpoint', endpoint_display_name,
                     'EXPOSES',
@@ -119,9 +123,33 @@ def import_relationships_from_sw(client, services, endpoints, dependencies):
             except Exception as e:
                 pass  # 忽略已存在的关系
     
-    # 创建服务间依赖关系
+    # 创建服务间/服务与数据库依赖关系
     service_names = {s.get('name') for s in services}
     
+    # 从拓扑节点中提取数据库信息
+    db_nodes = {}
+    if topology_nodes:
+        for node in topology_nodes:
+            node_type = node.get('type', '')
+            if node_type in ('Mysql', 'Redis', 'PostgreSQL', 'MongoDB'):
+                db_nodes[node.get('id')] = {
+                    'name': node.get('name'),
+                    'type': node_type
+                }
+    
+    # 创建/更新数据库节点
+    for db_id, db_info in db_nodes.items():
+        try:
+            client.merge_node('Database', {'name': db_info['name']}, {
+                'name': db_info['name'],
+                'db_type': db_info['type'],
+                'source': 'skywalking'
+            })
+            print(f"  ✓ Database: {db_info['name']} ({db_info['type']})")
+        except:
+            pass
+    
+    # 处理依赖关系
     for dep in dependencies:
         source = dep.get('source')
         target = dep.get('target')
@@ -129,6 +157,7 @@ def import_relationships_from_sw(client, services, endpoints, dependencies):
         # 尝试解析服务名
         source_name = None
         target_name = None
+        target_type = None
         
         for s in services:
             if s.get('id') == source:
@@ -136,22 +165,41 @@ def import_relationships_from_sw(client, services, endpoints, dependencies):
             if s.get('id') == target:
                 target_name = s.get('name')
         
+        # 检查是否是数据库
+        if not target_name and target in db_nodes:
+            target_name = db_nodes[target]['name']
+            target_type = db_nodes[target]['type']
+        
         if source_name and target_name:
-            try:
-                client.create_relationship(
-                    'Service', source_name,
-                    'Service', target_name,
-                    'DEPENDS_ON',
-                    {'description': '服务依赖', 'source': 'skywalking'}
-                )
-                success_count += 1
-            except Exception as e:
-                pass  # 忽略已存在的关系
+            # 服务->服务 依赖
+            if target_type is None:
+                try:
+                    client.merge_relationship(
+                        'Service', source_name,
+                        'Service', target_name,
+                        'DEPENDS_ON',
+                        {'description': '服务依赖', 'source': 'skywalking'}
+                    )
+                    success_count += 1
+                except Exception as e:
+                    pass
+            else:
+                # 服务->数据库 依赖
+                try:
+                    client.merge_relationship(
+                        'Service', source_name,
+                        'Database', target_name,
+                        'ACCESSES',
+                        {'description': f'访问{target_type}数据库', 'source': 'skywalking'}
+                    )
+                    success_count += 1
+                except Exception as e:
+                    pass
     
     print(f"  成功导入 {success_count} 个关系")
 
 
-def main():
+def main(interval_minutes=10, clear_before_import=False):
     """主函数"""
     print("\n" + "="*60)
     print("🚀 动态资源数据清洗工具 - 从SkyWalking获取并导入Neo4j")
@@ -175,9 +223,14 @@ def main():
         sys.exit(1)
     
     try:
+        # 导入前清空旧数据
+        if clear_before_import:
+            print("\n🗑️ 清空旧数据...")
+            client.delete_all()
+        
         # 3. 从SkyWalking获取资源数据
         if services:
-            resources = sw_client.get_all_data()
+            resources = sw_client.get_all_data(interval_minutes=interval_minutes)
             
             # 导入服务
             import_services_from_sw(client, resources.get('services', []))
@@ -190,7 +243,8 @@ def main():
                 client, 
                 resources.get('services', []),
                 resources.get('endpoints', []),
-                resources.get('dependencies', [])
+                resources.get('dependencies', []),
+                resources.get('topology_nodes', [])
             )
         else:
             print("\n⚠️ 未获取到SkyWalking数据，请检查OAP服务连接")
@@ -212,4 +266,9 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser(description='从SkyWalking导入资源到Neo4j')
+    parser.add_argument('--interval', '-i', type=int, default=1440, help='拓扑查询时间范围(分钟)')
+    args = parser.parse_args()
+    
+    main(interval_minutes=args.interval)

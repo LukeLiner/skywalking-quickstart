@@ -29,6 +29,11 @@ class SkyWalkingClient:
         ts = int((time.time() * 1000)) - (minutes * 60 * 1000)
         return str(ts)
     
+    def _get_datetime_str(self, minutes=0):
+        """获取日期时间字符串，格式: YYYY-MM-DD HHmm"""
+        now = time.time() - (minutes * 60)
+        return time.strftime("%Y-%m-%d %H%M", time.localtime(now))
+    
     def _query(self, query, variables=None):
         """执行GraphQL查询"""
         try:
@@ -105,21 +110,53 @@ class SkyWalkingClient:
         print(f"    ⚠ 无法获取端点数据")
         return []
     
-    def get_service_dependencies(self, service_id):
+    def get_service_dependencies(self, service_id, minutes=10):
         """获取服务的依赖关系"""
-        # 拓扑API在当前版本有格式问题，暂不实现
-        print(f"    ⚠ 拓扑API暂不可用")
+        # 使用最近几分钟的时间范围，与scheduler频率一致
+        start_time = self._get_datetime_str(minutes=minutes)
+        end_time = self._get_datetime_str()
+        
+        query = f"""
+        {{
+            getServiceTopology(serviceId: "{service_id}", duration: {{start: "{start_time}", end: "{end_time}", step: MINUTE}}) {{
+                nodes {{
+                    id
+                    name
+                    type
+                }}
+                calls {{
+                    source
+                    target
+                    id
+                }}
+            }}
+        }}
+        """
+        
+        result = self._query(query)
+        if result and 'data' in result:
+            topology = result['data'].get('getServiceTopology', {})
+            nodes = topology.get('nodes', [])
+            calls = topology.get('calls', [])
+            print(f"    ✓ 获取到 {len(nodes)} 个节点, {len(calls)} 条调用")
+            return nodes, calls
+        
+        print(f"    ⚠ 无法获取依赖关系")
         return [], []
     
-    def get_all_data(self):
+    def get_all_data(self, interval_minutes=10):
         """获取所有资源数据"""
         print("\n📥 开始从SkyWalking获取资源数据...")
         
         resources = {
             'services': [],
             'endpoints': [],
-            'dependencies': []
+            'dependencies': [],
+            'topology_nodes': []
         }
+        
+        # 收集所有拓扑节点（包含数据库等）
+        all_topology_nodes = []
         
         # 1. 获取所有服务
         print("\n  🔍 获取服务列表...")
@@ -153,7 +190,12 @@ class SkyWalkingClient:
             
             # 3. 获取服务依赖关系
             print(f"\n  🔍 获取服务 [{service.get('name')}] 的依赖...")
-            nodes, calls = self.get_service_dependencies(service.get('id'))
+            nodes, calls = self.get_service_dependencies(service.get('id'), minutes=interval_minutes)
+            
+            # 收集拓扑节点
+            for node in nodes:
+                if node not in all_topology_nodes:
+                    all_topology_nodes.append(node)
             
             for call in calls:
                 dep_data = {
@@ -162,6 +204,8 @@ class SkyWalkingClient:
                     'call_id': call.get('id')
                 }
                 resources['dependencies'].append(dep_data)
+        
+        resources['topology_nodes'] = all_topology_nodes
         
         print(f"\n  ✓ 总计获取 {len(resources['services'])} 个服务")
         print(f"  ✓ 总计获取 {len(resources['endpoints'])} 个端点")

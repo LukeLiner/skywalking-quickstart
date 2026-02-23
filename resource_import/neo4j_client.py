@@ -81,19 +81,20 @@ class Neo4jClient:
         
         # 构建MERGE的ON CREATE SET和ON MATCH SET子句
         set_clauses = []
-        for key in all_props.keys():
+        for key in clean_props.keys():
             set_clauses.append(f"n.{key} = ${key}")
         
         prop_str = ", ".join(set_clauses)
         
-        # 构建匹配条件
+        # 构建匹配条件 - 正确的语法
         match_parts = []
         for key in clean_match.keys():
-            match_parts.append(f"n.{key} = ${key}")
+            match_parts.append(f"{key}: ${key}")
+        match_str = ", ".join(match_parts)
         
         if match_parts:
             query = f"""
-            MERGE (n:{label})
+            MERGE (n:{label} {{{match_str}}})
             ON CREATE SET {prop_str}
             ON MATCH SET {prop_str}
             RETURN n
@@ -133,6 +134,44 @@ class Neo4jClient:
             MATCH (to:{to_label})
             WHERE to.name = $to_name
             CREATE (from)-[r:{rel_type}]->(to)
+            RETURN r
+            """
+        
+        params = {
+            'from_name': from_name,
+            'to_name': to_name,
+            **clean_props
+        }
+        
+        result = self.execute(query, params)
+        return result
+    
+    def merge_relationship(self, from_label, from_name, to_label, to_name, 
+                          rel_type, rel_properties=None):
+        """MERGE关系（存在则更新，不存在则创建）"""
+        rel_props = rel_properties or {}
+        clean_props = {k: v for k, v in rel_props.items() if v is not None}
+        
+        # 构建关系属性
+        if clean_props:
+            rel_prop_str = ", ".join([f"r.{k} = ${k}" for k in clean_props.keys()])
+            query = f"""
+            MATCH (from:{from_label})
+            WHERE from.name = $from_name
+            MATCH (to:{to_label})
+            WHERE to.name = $to_name
+            MERGE (from)-[r:{rel_type}]->(to)
+            ON CREATE SET {rel_prop_str}
+            ON MATCH SET {rel_prop_str}
+            RETURN r
+            """
+        else:
+            query = f"""
+            MATCH (from:{from_label})
+            WHERE from.name = $from_name
+            MATCH (to:{to_label})
+            WHERE to.name = $to_name
+            MERGE (from)-[r:{rel_type}]->(to)
             RETURN r
             """
         
