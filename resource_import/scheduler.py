@@ -11,7 +11,10 @@ def job():
     """定时执行的数据同步任务"""
     import io
     import sys
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    
+    # 每次执行时重新设置stdout，避免文件关闭问题
+    if sys.stdout.closed:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', mode='w')
     
     print("\n" + "="*60)
     print("Execute scheduled sync task")
@@ -32,17 +35,13 @@ Scheduled Resource Sync Service
 ============================================================
 
 Function: Sync resources from SkyWalking OAP to Neo4j
-
-Interval: 5 minutes (configurable)
-Data sources:
-  - SkyWalking OAP: services, endpoints, dependencies
-  - Static config: database, kafka, containers, hosts
+Data source: SkyWalking OAP (dynamic)
 
 Usage: python scheduler.py [interval_minutes]
 
 Examples:
   python scheduler.py       # every 5 minutes
-  python scheduler.py 10   # every 10 minutes
+  python scheduler.py 10    # every 10 minutes
   python scheduler.py 1     # every 1 minute (test)
 
 Stop: Ctrl+C

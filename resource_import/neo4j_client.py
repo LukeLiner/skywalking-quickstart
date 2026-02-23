@@ -217,9 +217,46 @@ class Neo4jClient:
         print()
 
 
-if __name__ == "__main__":
-    # 测试连接
+def clear_all_data():
+    """清空Neo4j中所有数据"""
+    print("\n⚠️  准备清空Neo4j数据库...")
+    print("    这将删除所有节点和关系！")
+    
     client = Neo4jClient()
     if client.connect():
+        # 先显示当前数据
         client.print_summary()
+        
+        # 确认清空
+        confirm = input("\n确认清空所有数据？(yes/no): ")
+        if confirm.lower() == 'yes':
+            client.delete_all()
+            print("\n✅ Neo4j数据已清空")
+            client.print_summary()
+        else:
+            print("\n❌ 已取消清空操作")
+        
         client.close()
+    else:
+        print("\n❌ 无法连接到Neo4j")
+
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Neo4j数据库工具')
+    parser.add_argument('--clear', action='store_true', help='清空所有数据')
+    
+    args = parser.parse_args()
+    
+    if args.clear:
+        clear_all_data()
+    else:
+        # 测试连接
+        client = Neo4jClient()
+        if client.connect():
+            client.print_summary()
+            client.close()
+        
+        print("\n💡 使用 --clear 参数可清空所有数据")
+        print("   示例: python neo4j_client.py --clear")
