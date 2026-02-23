@@ -38,7 +38,7 @@ def import_services_from_sw(client, services):
             'layer': service.get('layer', ''),
             'resource_type': 'microservice',
             'create_user': 'system',
-            'source': 'skywalking'
+            'source': '4A'
         }
         
         # 使用 MERGE 增量更新
@@ -78,7 +78,7 @@ def import_endpoints_from_sw(client, endpoints):
             'endpoint_name': name,
             'resource_type': 'http',
             'create_user': 'system',
-            'source': 'skywalking'
+            'source': '4A'
         }
         
         # 使用 MERGE 增量更新
@@ -117,7 +117,7 @@ def import_relationships_from_sw(client, services, endpoints, dependencies, topo
                     'Service', service_name,
                     'Endpoint', endpoint_display_name,
                     'EXPOSES',
-                    {'description': '服务暴露接口', 'source': 'skywalking'}
+                    {'description': '服务暴露接口', 'source': '4A'}
                 )
                 success_count += 1
             except Exception as e:
@@ -143,7 +143,8 @@ def import_relationships_from_sw(client, services, endpoints, dependencies, topo
             client.merge_node('Database', {'name': db_info['name']}, {
                 'name': db_info['name'],
                 'db_type': db_info['type'],
-                'source': 'skywalking'
+                'resource_type': 'database',
+                'source': '4A'
             })
             print(f"  ✓ Database: {db_info['name']} ({db_info['type']})")
         except:
@@ -178,7 +179,7 @@ def import_relationships_from_sw(client, services, endpoints, dependencies, topo
                         'Service', source_name,
                         'Service', target_name,
                         'DEPENDS_ON',
-                        {'description': '服务依赖', 'source': 'skywalking'}
+                        {'description': '服务依赖', 'source': '4A'}
                     )
                     success_count += 1
                 except Exception as e:
@@ -190,7 +191,7 @@ def import_relationships_from_sw(client, services, endpoints, dependencies, topo
                         'Service', source_name,
                         'Database', target_name,
                         'ACCESSES',
-                        {'description': f'访问{target_type}数据库', 'source': 'skywalking'}
+                        {'description': f'访问{target_type}数据库', 'source': '4A'}
                     )
                     success_count += 1
                 except Exception as e:
