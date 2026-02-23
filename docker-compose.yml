@@ -76,13 +76,14 @@ services:
   mysql:
     image: mysql:8.0
     container_name: mysql-db
+    command: --init-file=/docker-entrypoint-initdb.d/init-db.sql
     environment:
       - MYSQL_ROOT_PASSWORD=root
       - MYSQL_DATABASE=mytestshop
     ports:
       - "3306:3306"
     volumes:
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     networks:
       - skywalking-net
     healthcheck:
@@ -149,16 +150,13 @@ services:
       - SW_AGENT_NAME=xiaozhou-order
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
-      # Enable Kafka reporter to send data to Kafka
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=kafka:9092
-      - SW_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      # Configure Kafka topic to match OAP Kafka Fetcher
-      - SW_PLUGIN_KAFKA_TOPIC_SEGMENT=sw-traces
-      - SW_PLUGIN_KAFKA_TOPIC_METRICS=sw-metrics
-      - JAVA_OPTS=-DSW_AGENT_COLLECTOR_BACKEND_SERVICES=kafka:9092
+      # Send traces to OAP server via gRPC
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
+      - JAVA_OPTS=-Dskywalking.collector.backend_service=skywalking-oap:11800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
+      - ./skywalking-agent:/app/skywalking-agent:rw
     depends_on:
       nacos:
         condition: service_started
@@ -185,16 +183,48 @@ services:
       - SW_AGENT_NAME=xiaozhou-product
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
-      # Enable Kafka reporter to send data to Kafka
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=kafka:9092
-      - SW_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      # Configure Kafka topic to match OAP Kafka Fetcher
-      - SW_PLUGIN_KAFKA_TOPIC_SEGMENT=sw-traces
-      - SW_PLUGIN_KAFKA_TOPIC_METRICS=sw-metrics
-      - JAVA_OPTS=-DSW_AGENT_COLLECTOR_BACKEND_SERVICES=kafka:9092
+      # Send traces to OAP server via gRPC
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
+      - JAVA_OPTS=-Dskywalking.collector.backend_service=skywalking-oap:11800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
+      - ./skywalking-agent:/app/skywalking-agent:rw
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_started
+      kafka:
+        condition: service_healthy
+    networks:
+      - skywalking-net
+
+  xiaozhou-stock:
+    build:
+      context: .
+      dockerfile: xiaozhou-stock/Dockerfile
+      args:
+        - HTTP_PROXY=${HTTP_PROXY}
+        - HTTPS_PROXY=${HTTPS_PROXY}
+    container_name: xiaozhou-stock
+    ports:
+      - "8091:8091"
+    environment:
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true&allowPublicKeyRetrieval=true
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+      - SW_AGENT_NAME=xiaozhou-stock
+      # Enable trace sampling (1 sample per 3 seconds)
+      - SW_AGENT_SAMPLE=1
+      # Send traces to OAP server via gRPC
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
+      - JAVA_OPTS=-Dskywalking.collector.backend_service=skywalking-oap:11800
+    volumes:
+      - app-logs:/var/log/apps
+      - ${USERPROFILE}/.m2:/root/.m2
+      - ./skywalking-agent:/app/skywalking-agent:rw
     depends_on:
       mysql:
         condition: service_healthy
@@ -304,6 +334,7 @@ services:
       - data-prepper
       - xiaozhou-order
       - xiaozhou-product
+      - xiaozhou-stock
 
   # Data Prepper for metrics and traces ingestion to OpenSearch
   data-prepper:

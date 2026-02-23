@@ -45,3 +45,7 @@ htmlcov/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Maven
+target/
+.mvn/

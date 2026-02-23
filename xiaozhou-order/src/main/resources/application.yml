@@ -10,6 +10,13 @@ spring:
         #nacos???????
         username: nacos
         password: nacos
+  kafka:
+    bootstrap-servers: kafka:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      retries: 3
 #????
 server:
   port: 8089

@@ -83,6 +83,7 @@
     <modules>
         <module>xiaozhou-order</module>
         <module>xiaozhou-product</module>
+        <module>xiaozhou-stock</module>
     </modules>
 
 
