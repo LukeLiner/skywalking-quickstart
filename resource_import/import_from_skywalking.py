@@ -21,8 +21,16 @@ def import_services_from_sw(client, services):
     """从SkyWalking导入Service节点"""
     print("\n📥 开始导入Service节点...")
     
+    # 用于去重
+    seen = set()
+    
     for service in services:
         name = service.get('name', 'unknown')
+        
+        if name in seen:
+            continue
+        seen.add(name)
+        
         props = {
             'name': name,
             'id': service.get('id', ''),
@@ -32,10 +40,11 @@ def import_services_from_sw(client, services):
             'source': 'skywalking'
         }
         
-        client.merge_node('Service', {'name': name}, props)
+        # 使用 CREATE 确保每个服务都创建
+        client.create_node('Service', props)
         print(f"  ✓ Service: {name}")
     
-    print(f"  共导入 {len(services)} 个Service节点")
+    print(f"  共导入 {len(seen)} 个Service节点")
 
 
 def import_endpoints_from_sw(client, endpoints):
