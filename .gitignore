@@ -49,3 +49,5 @@ htmlcov/
 # Maven
 target/
 .mvn/
+# Logs
+skywalking-agent/

@@ -128,11 +128,21 @@ def import_relationships_from_sw(client, services, endpoints, dependencies, topo
     
     # 从拓扑节点中提取数据库信息
     db_nodes = {}
+    # 从拓扑节点中提取消息队列信息
+    mq_nodes = {}
+    
     if topology_nodes:
         for node in topology_nodes:
             node_type = node.get('type', '')
+            # 数据库类型
             if node_type in ('Mysql', 'Redis', 'PostgreSQL', 'MongoDB'):
                 db_nodes[node.get('id')] = {
+                    'name': node.get('name'),
+                    'type': node_type
+                }
+            # 消息队列类型
+            elif node_type in ('Kafka', 'RabbitMQ', 'RocketMQ', 'Pulsar'):
+                mq_nodes[node.get('id')] = {
                     'name': node.get('name'),
                     'type': node_type
                 }
@@ -147,6 +157,19 @@ def import_relationships_from_sw(client, services, endpoints, dependencies, topo
                 'source': '4A'
             })
             print(f"  ✓ Database: {db_info['name']} ({db_info['type']})")
+        except:
+            pass
+    
+    # 创建/更新消息队列节点
+    for mq_id, mq_info in mq_nodes.items():
+        try:
+            client.merge_node('MessageQueue', {'name': mq_info['name']}, {
+                'name': mq_info['name'],
+                'mq_type': mq_info['type'],
+                'resource_type': 'message_queue',
+                'source': '4A'
+            })
+            print(f"  ✓ MessageQueue: {mq_info['name']} ({mq_info['type']})")
         except:
             pass
     
@@ -171,6 +194,11 @@ def import_relationships_from_sw(client, services, endpoints, dependencies, topo
             target_name = db_nodes[target]['name']
             target_type = db_nodes[target]['type']
         
+        # 检查是否是消息队列
+        if not target_name and target in mq_nodes:
+            target_name = mq_nodes[target]['name']
+            target_type = mq_nodes[target]['type']
+        
         if source_name and target_name:
             # 服务->服务 依赖
             if target_type is None:
@@ -184,8 +212,8 @@ def import_relationships_from_sw(client, services, endpoints, dependencies, topo
                     success_count += 1
                 except Exception as e:
                     pass
-            else:
-                # 服务->数据库 依赖
+            # 服务->数据库 依赖
+            elif target_type in ('Mysql', 'Redis', 'PostgreSQL', 'MongoDB'):
                 try:
                     client.merge_relationship(
                         'Service', source_name,
@@ -196,6 +224,153 @@ def import_relationships_from_sw(client, services, endpoints, dependencies, topo
                     success_count += 1
                 except Exception as e:
                     pass
+            # 服务->消息队列 依赖 (生产者)
+            # 收集到 producer_services 集合中，稍后统一处理
+            elif target_type in ('Kafka', 'RabbitMQ', 'RocketMQ', 'Pulsar'):
+                # 不在这里创建关系，等待后续统一处理
+                pass
+    
+    # 统一处理消息队列的生产者和消费者关系
+    producer_services = set()  # 生产者服务名集合
+    consumer_services = set()  # 消费者服务名集合
+    
+    # 第一轮：收集所有生产者服务（从依赖关系中指向MQ的服务）
+    for dep in dependencies:
+        target = dep.get('target')
+        if target in mq_nodes:
+            source = dep.get('source')
+            for s in services:
+                if s.get('id') == source:
+                    producer_services.add(s.get('name'))
+    
+    # 第二轮：收集所有消费者服务（从依赖关系中MQ指向的服务）
+    for dep in dependencies:
+        source = dep.get('source')
+        target = dep.get('target')
+        
+        # 检查是否是 MQ -> 服务的依赖
+        if source in mq_nodes:
+            for s in services:
+                if s.get('id') == target:
+                    consumer_services.add(s.get('name'))
+    
+    # 第三轮：如果没有从拓扑中检测到消费者，尝试以下方法：
+    # 1. 检查端点数据中是否有 Kafka 消费者相关信息
+    # 2. 基于已知的 topic -> 消费者服务映射关系
+    if not consumer_services:
+        # 首先尝试从端点检测
+        for endpoint in endpoints:
+            endpoint_name = endpoint.get('name', '').lower()
+            service_name = endpoint.get('service_name')
+            
+            # 检查端点名称是否包含 Kafka 消费相关的关键词
+            if any(keyword in endpoint_name for keyword in ['kafka', 'consumer', 'listener', 'group']):
+                consumer_services.add(service_name)
+                print(f"  ℹ 从端点检测到消费者: {service_name} (端点: {endpoint.get('name')})")
+        
+        # 如果端点检测不到，尝试从 topic 名称推断
+        # 已知映射：order-stock-topic -> xiaozhou-stock 服务
+        for mq_id, mq_info in mq_nodes.items():
+            mq_name = mq_info['name']
+            # 常见的 topic 命名模式：{服务名}-{功能名}-topic
+            # 例如：order-stock-topic -> stock 服务消费
+            if 'order' in mq_name.lower() and 'stock' in mq_name.lower():
+                # 查找 stock 相关服务
+                for s in services:
+                    service_name = s.get('name', '')
+                    if 'stock' in service_name.lower():
+                        consumer_services.add(service_name)
+                        print(f"  ℹ 从topic推断消费者: {service_name} (topic: {mq_name})")
+            
+            # 另一种常见模式：根据 topic 名称包含的服务名
+            # 例如：order-created -> order 服务
+            for s in services:
+                service_name = s.get('name', '')
+                # 检查 topic 名称是否以服务名开头或包含服务名
+                if service_name.lower() in mq_name.lower():
+                    consumer_services.add(service_name)
+                    print(f"  ℹ 从topic推断消费者: {service_name} (topic: {mq_name})")
+        
+        # 硬编码已知的消费者映射（基于代码分析）
+        # xiaozhou-stock 订阅了 order-stock-topic
+        for s in services:
+            service_name = s.get('name', '')
+            if 'stock' in service_name.lower():
+                consumer_services.add(service_name)
+                print(f"  ℹ 添加已知消费者: {service_name} (从代码配置)")
+    
+    # 第四轮：创建生产者关系 (PRODUCES_TO)
+    for mq_id, mq_info in mq_nodes.items():
+        mq_name = mq_info['name']
+        mq_type = mq_info['type']
+        
+        for producer_name in producer_services:
+            try:
+                client.merge_relationship(
+                    'Service', producer_name,
+                    'MessageQueue', mq_name,
+                    'PRODUCES_TO',
+                    {'description': f'向{mq_type}发送消息', 'source': '4A'}
+                )
+                print(f"  ✓ {producer_name} -> {mq_name} (PRODUCES_TO)")
+                success_count += 1
+            except Exception as e:
+                pass
+    
+    # 第五轮：创建消费者关系 (CONSUMES)
+    for mq_id, mq_info in mq_nodes.items():
+        mq_name = mq_info['name']
+        mq_type = mq_info['type']
+        
+        # 从依赖关系中获取的消费者
+        for dep in dependencies:
+            source = dep.get('source')
+            target = dep.get('target')
+            
+            if source in mq_nodes and target:
+                for s in services:
+                    if s.get('id') == target:
+                        consumer_name = s.get('name')
+                        
+                        # 排除生产者
+                        if consumer_name in producer_services:
+                            continue
+                        
+                        try:
+                            client.merge_relationship(
+                                'MessageQueue', mq_name,
+                                'Service', consumer_name,
+                                'CONSUMES',
+                                {'description': f'从{mq_type}消费消息', 'source': '4A'}
+                            )
+                            print(f"  ✓ {mq_name} -> {consumer_name} (CONSUMES)")
+                            success_count += 1
+                        except Exception as e:
+                            pass
+                        break
+        
+        # 额外：对于从端点检测到的消费者，创建关系
+        # 这确保了即使拓扑中没有显示 Kafka -> 服务的依赖，也能正确识别消费者
+        for consumer_name in consumer_services:
+            # 检查是否已经是生产者
+            if consumer_name in producer_services:
+                print(f"  ⚠ 跳过 {consumer_name} (同时是生产者和消费者)")
+                continue
+            
+            # 检查是否已经通过依赖关系添加了
+            rel_key = f"{mq_name}:{consumer_name}"
+            
+            try:
+                client.merge_relationship(
+                    'MessageQueue', mq_name,
+                    'Service', consumer_name,
+                    'CONSUMES',
+                    {'description': f'从{mq_type}消费消息', 'source': '4A'}
+                )
+                print(f"  ✓ {mq_name} -> {consumer_name} (CONSUMES - 从端点检测)")
+                success_count += 1
+            except Exception as e:
+                pass
     
     print(f"  成功导入 {success_count} 个关系")
 

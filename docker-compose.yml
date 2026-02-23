@@ -156,7 +156,7 @@ services:
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
-      - ./skywalking-agent:/app/skywalking-agent:rw
+      - ./skywalking-agent/skywalking-agent:/app/skywalking-agent:rw
     depends_on:
       nacos:
         condition: service_started
@@ -189,7 +189,7 @@ services:
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
-      - ./skywalking-agent:/app/skywalking-agent:rw
+      - ./skywalking-agent/skywalking-agent:/app/skywalking-agent:rw
     depends_on:
       mysql:
         condition: service_healthy
