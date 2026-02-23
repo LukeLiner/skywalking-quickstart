@@ -15,5 +15,6 @@
             "username": "root",
             "password": "root"
         }
-    ]
+    ],
+    "python-envs.pythonProjects": []
 }
