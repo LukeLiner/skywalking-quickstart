@@ -42,22 +42,38 @@ def import_endpoints_from_sw(client, endpoints):
     """从SkyWalking导入Endpoint节点"""
     print("\n📥 开始导入Endpoint节点...")
     
+    # 用于去重 - 确保相同名称+服务的端点只导入一次
+    seen = set()
+    
     for endpoint in endpoints:
+        service_name = endpoint.get('service_name', '')
         name = endpoint.get('name', 'unknown')
+        
+        # 创建唯一标识: service_name + endpoint_name
+        unique_key = f"{service_name}:{name}"
+        if unique_key in seen:
+            continue
+        seen.add(unique_key)
+        
+        # 端点名称加上服务名前缀以确保唯一性
+        display_name = f"{service_name}:{name}"
+        
         props = {
-            'name': name,
+            'name': display_name,
             'id': endpoint.get('id', ''),
             'type': endpoint.get('type', 'HTTP'),
-            'service_name': endpoint.get('service_name', ''),
+            'service_name': service_name,
+            'endpoint_name': name,
             'resource_type': 'http',
             'create_user': 'system',
             'source': 'skywalking'
         }
         
-        client.merge_node('Endpoint', {'name': name}, props)
-        print(f"  ✓ Endpoint: {name}")
+        # 使用 CREATE 而不是 MERGE
+        client.create_node('Endpoint', props)
+        print(f"  ✓ Endpoint: {display_name}")
     
-    print(f"  共导入 {len(endpoints)} 个Endpoint节点")
+    print(f"  共导入 {len(seen)} 个Endpoint节点")
 
 
 def import_relationships_from_sw(client, services, endpoints, dependencies):
@@ -67,14 +83,26 @@ def import_relationships_from_sw(client, services, endpoints, dependencies):
     # 建立服务与端点的关联
     success_count = 0
     
-    # 创建服务-端点关系
+    # 创建服务-端点关系 (使用带服务前缀的名称)
+    seen_rels = set()
     for endpoint in endpoints:
         service_name = endpoint.get('service_name')
+        endpoint_name = endpoint.get('name', 'unknown')
+        
         if service_name:
+            # 使用带前缀的名称
+            endpoint_display_name = f"{service_name}:{endpoint_name}"
+            
+            # 去重
+            rel_key = f"{service_name}:{endpoint_display_name}"
+            if rel_key in seen_rels:
+                continue
+            seen_rels.add(rel_key)
+            
             try:
                 client.create_relationship(
                     'Service', service_name,
-                    'Endpoint', endpoint.get('name'),
+                    'Endpoint', endpoint_display_name,
                     'EXPOSES',
                     {'description': '服务暴露接口', 'source': 'skywalking'}
                 )

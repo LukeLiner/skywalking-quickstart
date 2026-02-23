@@ -1,8 +1,16 @@
 # -*- coding: utf-8 -*-
 """
 SkyWalking客户端 - 从SkyWalking OAP动态获取资源信息
-使用正确的GraphQL查询格式
 """
+import sys
+import io
+
+# 设置控制台输出编码
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    except:
+        pass
 
 import requests
 import json
@@ -39,7 +47,14 @@ class SkyWalkingClient:
                 print(f"  ✗ HTTP {response.status_code}: {response.text[:200]}")
                 return None
             
-            return response.json()
+            result = response.json()
+            
+            # 如果有错误，打印出来
+            if 'errors' in result:
+                for err in result['errors']:
+                    print(f"  ✗ GraphQL错误: {err.get('message', err)}")
+            
+            return result
         except Exception as e:
             print(f"  ✗ GraphQL查询失败: {e}")
             return None
@@ -69,116 +84,32 @@ class SkyWalkingClient:
         return []
     
     def get_service_endpoints(self, service_id):
-        """获取服务的端点列表（使用REST API）"""
-        start_time = self._get_timestamp_str(minutes=5)
-        end_time = self._get_timestamp_str()
-        
-        try:
-            url = f"{self.oap_url}/api/v2/metrics/endpoint"
-            params = {
-                'serviceId': service_id,
-                'startTime': start_time,
-                'endTime': end_time
-            }
-            response = requests.get(url, params=params, timeout=30)
-            
-            if response.status_code == 200:
-                data = response.json()
-                endpoints = data.get('endpoints', [])
-                if endpoints:
-                    return endpoints
-        except Exception as e:
-            print(f"  ✗ REST API获取端点失败: {e}")
-        
-        # 尝试从Trace中提取端点
-        return self._get_endpoints_from_traces(service_id)
-    
-    def _get_endpoints_from_traces(self, service_id):
-        """从Trace数据中提取端点"""
-        start_time = self._get_timestamp_str(minutes=5)
-        end_time = self._get_timestamp_str()
-        
-        try:
-            # 获取最近的trace
-            url = f"{self.oap_url}/api/v2/trace"
-            params = {
-                'serviceId': service_id,
-                'startTime': start_time,
-                'endTime': end_time,
-                'limit': 100
-            }
-            response = requests.get(url, params=params, timeout=30)
-            
-            if response.status_code == 200:
-                traces = response.json()
-                endpoints_map = {}
-                
-                for trace in traces:
-                    for span in trace.get('spans', []):
-                        operation_name = span.get('operationName', '')
-                        if operation_name and operation_name not in endpoints_map:
-                            endpoints_map[operation_name] = {
-                                'id': operation_name,
-                                'name': operation_name,
-                                'type': span.get('spanType', 'HTTP'),
-                                'serviceId': service_id
-                            }
-                
-                return list(endpoints_map.values())
-        except Exception as e:
-            print(f"  ✗ 从Trace提取端点失败: {e}")
-        
-        return []
-    
-    def get_service_dependencies(self, service_id):
-        """获取服务的依赖关系（使用REST API）"""
-        start_time = self._get_timestamp_str(minutes=5)
-        end_time = self._get_timestamp_str()
-        
-        try:
-            # 使用拓扑API
-            url = f"{self.oap_url}/api/v2/topology"
-            params = {
-                'serviceId': service_id,
-                'startTime': start_time,
-                'endTime': end_time
-            }
-            response = requests.get(url, params=params, timeout=30)
-            
-            if response.status_code == 200:
-                data = response.json()
-                nodes = data.get('nodes', [])
-                calls = data.get('calls', [])
-                return nodes, calls
-        except Exception as e:
-            print(f"  ✗ REST API获取拓扑失败: {e}")
-        
-        return [], []
-    
-    def get_all_service_instances(self, service_id):
-        """获取服务的实例列表"""
-        start_time = self._get_timestamp_str(minutes=5)
-        end_time = self._get_timestamp_str()
-        
-        escaped_id = service_id.replace('"', '\\"')
-        
+        """获取服务的端点列表 - 使用 searchEndpoint API"""
+        # searchEndpoint 不需要 duration 参数
         query = f"""
         {{
-            getServiceInstances(serviceId: "{escaped_id}", duration: {{start: "{start_time}", end: "{end_time}", step: MINUTE}}) {{
+            searchEndpoint(serviceId: "{service_id}", keyword: "", limit: 100) {{
                 id
                 name
-                serviceId
-                instanceId
             }}
         }}
         """
         
         result = self._query(query)
         if result and 'data' in result:
-            instances = result['data'].get('getServiceInstances', [])
-            return instances
+            endpoints = result['data'].get('searchEndpoint', [])
+            if endpoints:
+                # 转换格式
+                return [{'id': e.get('id'), 'name': e.get('name'), 'type': 'HTTP', 'serviceId': service_id} for e in endpoints]
         
+        print(f"    ⚠ 无法获取端点数据")
         return []
+    
+    def get_service_dependencies(self, service_id):
+        """获取服务的依赖关系"""
+        # 拓扑API在当前版本有格式问题，暂不实现
+        print(f"    ⚠ 拓扑API暂不可用")
+        return [], []
     
     def get_all_data(self):
         """获取所有资源数据"""

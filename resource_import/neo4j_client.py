@@ -2,6 +2,15 @@
 """
 Neo4j客户端 - 负责连接Neo4j数据库并执行Cypher查询
 """
+import sys
+import io
+
+# 设置控制台输出编码
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    except:
+        pass
 
 from neo4j import GraphDatabase
 from config import NEO4J_CONFIG
@@ -217,28 +226,109 @@ class Neo4jClient:
         print()
 
 
-def clear_all_data():
+def clear_all_data(force=False):
     """清空Neo4j中所有数据"""
-    print("\n⚠️  准备清空Neo4j数据库...")
-    print("    这将删除所有节点和关系！")
-    
     client = Neo4jClient()
-    if client.connect():
-        # 先显示当前数据
-        client.print_summary()
-        
-        # 确认清空
-        confirm = input("\n确认清空所有数据？(yes/no): ")
-        if confirm.lower() == 'yes':
-            client.delete_all()
-            print("\n✅ Neo4j数据已清空")
-            client.print_summary()
+    if not client.connect():
+        print("\nFailed to connect to Neo4j")
+        return
+    
+    # 显示当前数据
+    client.print_summary()
+    
+    if not force:
+        print("\nWARNING: This will delete all nodes and relationships!")
+        confirm = input("\nConfirm clear all data? (yes/no): ")
+        if confirm.lower() != 'yes':
+            print("\nCancelled")
+            client.close()
+            return
+    
+    client.delete_all()
+    print("\nAll data cleared!")
+    client.print_summary()
+    client.close()
+
+
+def query_nodes(label=None, name_pattern=None):
+    """查询节点"""
+    client = Neo4jClient()
+    if not client.connect():
+        return
+    
+    try:
+        if label and name_pattern:
+            query = f"MATCH (n:{label}) WHERE n.name CONTAINS $name RETURN n ORDER BY n.name"
+            results = client.execute(query, {'name': name_pattern})
+        elif label:
+            query = f"MATCH (n:{label}) RETURN n ORDER BY n.name"
+            results = client.execute(query)
         else:
-            print("\n❌ 已取消清空操作")
+            query = "MATCH (n) RETURN labels(n)[0] as type, n.name as name ORDER BY type, name"
+            results = client.execute(query)
         
+        print("\n" + "="*50)
+        print("查询结果")
+        print("="*50)
+        
+        if not results:
+            print("无结果")
+        else:
+            for record in results:
+                if label:
+                    node = record['n']
+                    print(f"  - {dict(node)}")
+                else:
+                    print(f"  - {record['type']}: {record['name']}")
+        
+        print()
+    finally:
         client.close()
-    else:
-        print("\n❌ 无法连接到Neo4j")
+
+
+def query_relationships(rel_type=None, from_node=None, to_node=None):
+    """查询关系"""
+    client = Neo4jClient()
+    if not client.connect():
+        return
+    
+    try:
+        conditions = []
+        params = {}
+        
+        if rel_type:
+            conditions.append(f"type(r) = '${rel_type}'")
+        if from_node:
+            conditions.append(f"from.name = $from_name")
+            params['from_name'] = from_node
+        if to_node:
+            conditions.append(f"to.name = $to_name")
+            params['to_name'] = to_node
+        
+        where_clause = " AND ".join(conditions) if conditions else "1=1"
+        
+        query = f"""
+        MATCH (from)-[r]->(to)
+        WHERE {where_clause}
+        RETURN from.name as from_name, type(r) as type, to.name as to_name
+        ORDER BY from_name, type
+        """
+        
+        results = client.execute(query, params)
+        
+        print("\n" + "="*50)
+        print("关系查询结果")
+        print("="*50)
+        
+        if not results:
+            print("无结果")
+        else:
+            for record in results:
+                print(f"  {record['from_name']} --[{record['type']}]--> {record['to_name']}")
+        
+        print()
+    finally:
+        client.close()
 
 
 if __name__ == "__main__":
@@ -246,11 +336,37 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='Neo4j数据库工具')
     parser.add_argument('--clear', action='store_true', help='清空所有数据')
+    parser.add_argument('--force', '-f', action='store_true', help='强制执行不清空确认')
+    parser.add_argument('--query', '-q', metavar='LABEL', help='查询指定类型的节点')
+    parser.add_argument('--rels', '-r', metavar='TYPE', help='查询指定类型的关系')
+    parser.add_argument('--all', '-a', action='store_true', help='显示所有数据')
+    parser.add_argument('--search', '-s', metavar='NAME', help='按名称搜索节点')
     
     args = parser.parse_args()
     
     if args.clear:
-        clear_all_data()
+        clear_all_data(force=args.force)
+    elif args.all:
+        client = Neo4jClient()
+        if client.connect():
+            print("\n=== 所有节点 ===")
+            nodes = client.get_all_nodes()
+            for n in nodes:
+                print(f"  [{n['type']}] {n['name']}")
+            
+            print("\n=== 所有关系 ===")
+            rels = client.get_all_relationships()
+            for r in rels:
+                print(f"  {r['from_name']} --[{r['relation']}]--> {r['to_name']}")
+            
+            client.print_summary()
+            client.close()
+    elif args.query:
+        query_nodes(label=args.query)
+    elif args.search:
+        query_nodes(name_pattern=args.search)
+    elif args.rels:
+        query_relationships(rel_type=args.rels)
     else:
         # 测试连接
         client = Neo4jClient()
@@ -258,5 +374,12 @@ if __name__ == "__main__":
             client.print_summary()
             client.close()
         
-        print("\n💡 使用 --clear 参数可清空所有数据")
-        print("   示例: python neo4j_client.py --clear")
+        print("""
+使用方法:
+  python neo4j_client.py --all          # 查看所有数据
+  python neo4j_client.py -q Service    # 查询所有Service节点
+  python neo4j_client.py -q Endpoint    # 查询所有Endpoint节点
+  python neo4j_client.py -r EXPOSES    # 查询所有EXPOSES关系
+  python neo4j_client.py -s product     # 搜索名称包含product的节点
+  python neo4j_client.py --clear         # 清空所有数据
+""")
