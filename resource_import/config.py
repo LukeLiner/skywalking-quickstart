@@ -9,3 +9,11 @@ NEO4J_CONFIG = {
 
 # SkyWalking OAP连接配置
 SKYWALKING_OAP_URL = 'http://localhost:12800'
+
+# OpenSearch连接配置 (用于获取OTel指标中的实例信息)
+OPENSEARCH_URL = 'http://localhost:9200'
+
+# Docker API连接配置
+DOCKER_CONFIG = {
+    'url': 'http://localhost:2375'  # Docker daemon API
+}

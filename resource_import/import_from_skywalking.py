@@ -89,7 +89,161 @@ def import_endpoints_from_sw(client, endpoints):
     print(f"  共处理 {count} 个Endpoint节点")
 
 
-def import_relationships_from_sw(client, services, endpoints, dependencies, topology_nodes=None):
+def import_instances_from_sw(client, instances):
+    """从SkyWalking/OpenSearch导入Instance节点"""
+    print("\n📥 开始导入Instance节点...")
+    
+    seen = set()
+    count = 0
+    
+    for instance in instances:
+        name = instance.get('name', 'unknown')
+        
+        if name in seen:
+            continue
+        seen.add(name)
+        
+        # 获取关联的服务名
+        service_name = instance.get('service_name', '')
+        
+        props = {
+            'name': name,
+            'id': instance.get('id', ''),
+            'service_name': service_name,
+            'source': instance.get('source', 'skywalking'),
+            'resource_type': 'service_instance',
+            'create_user': 'system'
+        }
+        
+        # 添加属性（如果有）
+        attributes = instance.get('attributes', {})
+        if attributes:
+            props['attributes'] = json.dumps(attributes)
+        
+        # 使用 MERGE 增量更新
+        client.merge_node('Instance', {'name': name}, props)
+        print(f"  ✓ Instance: {name} (服务: {service_name})")
+        count += 1
+    
+    print(f"  共处理 {count} 个Instance节点")
+    return count
+
+
+def import_containers_from_sw(client, containers):
+    """从Docker API导入Container节点"""
+    print("\n📥 开始导入Container节点...")
+    
+    seen = set()
+    count = 0
+    
+    for container in containers:
+        name = container.get('name', 'unknown')
+        
+        if name in seen:
+            continue
+        seen.add(name)
+        
+        props = {
+            'name': name,
+            'id': container.get('id', ''),
+            'image': container.get('image', ''),
+            'status': container.get('status', ''),
+            'resource_type': 'container',
+            'create_user': 'system',
+            'source': 'docker'
+        }
+        
+        # 添加端口信息
+        ports = container.get('ports', [])
+        if ports:
+            props['ports'] = ','.join(ports)
+        
+        # 使用 MERGE 增量更新
+        client.merge_node('Container', {'name': name}, props)
+        print(f"  ✓ Container: {name} (镜像: {container.get('image', 'unknown')})")
+        count += 1
+    
+    print(f"  共处理 {count} 个Container节点")
+    return count
+
+
+def import_instance_relationships(client, instances, containers):
+    """导入实例和容器之间的关联关系"""
+    print("\n🔗 开始导入实例-容器关联关系...")
+    
+    success_count = 0
+    
+    # 建立服务名到服务实例的映射
+    service_to_instances = {}
+    for instance in instances:
+        service_name = instance.get('service_name', '')
+        if service_name:
+            if service_name not in service_to_instances:
+                service_to_instances[service_name] = []
+            service_to_instances[service_name].append(instance.get('name', ''))
+    
+    # 通过容器标签建立容器与服务的关联
+    container_service_mapping = {}
+    for container in containers:
+        labels = container.get('labels', {})
+        
+        # 检查标签中是否有服务名信息
+        # 常见的标签键：com.docker.compose.service, service, app等
+        service_name = labels.get('com.docker.compose.service', '')
+        if not service_name:
+            # 尝试从容器名推断服务名
+            container_name = container.get('name', '')
+            for known_service in ['xiaozhou-order', 'xiaozhou-product', 'xiaozhou-stock']:
+                if known_service in container_name:
+                    service_name = known_service
+                    break
+        
+        if service_name:
+            container_service_mapping[container.get('name')] = service_name
+    
+    # 创建服务-实例关系 (HAS_INSTANCE)
+    for service_name, instance_names in service_to_instances.items():
+        for instance_name in instance_names:
+            try:
+                client.merge_relationship(
+                    'Service', service_name,
+                    'Instance', instance_name,
+                    'HAS_INSTANCE',
+                    {'description': '服务运行实例', 'source': '4A'}
+                )
+                success_count += 1
+            except Exception as e:
+                pass  # 忽略已存在的关系
+    
+    # 创建实例-容器关系 (RUNS_ON)
+    for instance in instances:
+        instance_name = instance.get('name', '')
+        service_name = instance.get('service_name', '')
+        
+        # 查找对应的容器
+        for container in containers:
+            container_name = container.get('name', '')
+            
+            # 通过服务名匹配
+            mapped_service = container_service_mapping.get(container_name, '')
+            if mapped_service == service_name or service_name in container_name:
+                try:
+                    client.merge_relationship(
+                        'Instance', instance_name,
+                        'Container', container_name,
+                        'RUNS_ON',
+                        {'description': '实例运行在容器中', 'source': 'docker'}
+                    )
+                    print(f"  ✓ {instance_name} -> {container_name} (RUNS_ON)")
+                    success_count += 1
+                except Exception as e:
+                    pass
+    
+    print(f"  成功导入 {success_count} 个实例/容器关系")
+    return success_count
+
+
+def import_relationships_from_sw(client, services, endpoints, dependencies, topology_nodes=None, instances=None, containers=None):
     """从SkyWalking导入关联关系"""
     print("\n🔗 开始导入关联关系...")
     
@@ -422,6 +576,19 @@ def main(interval_minutes=10, clear_before_import=False):
                 resources.get('dependencies', []),
                 resources.get('topology_nodes', [])
             )
+            
+            # 导入实例节点
+            import_instances_from_sw(client, resources.get('instances', []))
+            
+            # 导入容器节点
+            import_containers_from_sw(client, resources.get('containers', []))
+            
+            # 导入实例-容器关系
+            import_instance_relationships(
+                client,
+                resources.get('instances', []),
+                resources.get('containers', [])
+            )
         else:
             print("\n⚠️ 未获取到SkyWalking数据，请检查OAP服务连接")
         
@@ -431,6 +598,8 @@ def main(interval_minutes=10, clear_before_import=False):
         print("\n✅ 数据导入完成！")
         print("\n💡 说明:")
         print("   - 所有数据均来自SkyWalking OAP动态获取")
+        print("   - 实例数据可从SkyWalking OAP或OpenSearch获取")
+        print("   - 容器数据从Docker API获取")
         
     except Exception as e:
         print(f"\n❌ 导入过程中发生错误: {e}")
