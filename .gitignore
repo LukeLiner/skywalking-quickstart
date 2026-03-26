@@ -1,0 +1,10 @@
+# Docker images
+docker-images/
+
+# Save docker images script
+save-docker-images.ps1
+
+# Maven build output
+format-converter/target/
+xiaozhou-order/target/
+xiaozhou-product/target/

@@ -1,15 +1,13 @@
-# Build stage
+# Build stage - skip dependency download, use pre-built jar
 FROM maven:3.8-openjdk-11 AS builder
 
 WORKDIR /app
 
-# Copy pom.xml and download dependencies
+# Copy pom.xml (not downloading dependencies)
 COPY pom.xml .
-RUN mvn dependency:go-offline -B
 
-# Copy source and build
-COPY src ./src
-RUN mvn package -DskipTests -B
+# Copy pre-built jar from local target directory
+COPY target/format-converter.jar /app/format-converter.jar
 
 # Runtime stage
 FROM eclipse-temurin:11-jre-alpine
@@ -17,7 +15,7 @@ FROM eclipse-temurin:11-jre-alpine
 WORKDIR /app
 
 # Copy the built jar
-COPY --from=builder /app/target/format-converter.jar app.jar
+COPY --from=builder /app/format-converter.jar app.jar
 
 # Environment variables
 ENV KAFKA_BOOTSTRAP_SERVERS=kafka:9092
