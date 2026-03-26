@@ -1,5 +1,0 @@
-com\converter\converter\SkyWalkingToOtlpConverter$1.class
-com\converter\config\KafkaConfig.class
-com\converter\FormatConverterApplication.class
-com\converter\converter\SkyWalkingToOtlpConverter.class
-com\converter\service\TraceConversionService.class
