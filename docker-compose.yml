@@ -50,8 +50,8 @@ services:
       - SW_AGENT_NAME=xiaozhou-order
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
-      # Send traces to OAP server via SkyWalking gRPC protocol (port 11800)
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
+      # Send traces to OAP server via SkyWalking http protocol (port 12800)
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:12800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -81,8 +81,8 @@ services:
       - SW_AGENT_NAME=xiaozhou-product
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
-      # Send traces to OAP server via SkyWalking gRPC protocol (port 11800)
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
+      # Send traces to OAP server via SkyWalking http protocol (port 12800)
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:12800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -114,8 +114,8 @@ services:
       - SW_AGENT_NAME=xiaozhou-stock
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
-      # Send traces to OAP server via SkyWalking gRPC protocol (port 11800)
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
+      # Send traces to OAP server via SkyWalking gRPC http (port 12800)
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:12800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -200,8 +200,6 @@ services:
     container_name: otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     ports:
-      - "4317:4317"    # OTLP gRPC receiver
-      - "4318:4318"    # OTLP HTTP receiver
       - "11800:11800"  # SkyWalking gRPC receiver
       - "12800:12800"  # SkyWalking HTTP receiver
       - "8889:8889"    # Prometheus metrics endpoint

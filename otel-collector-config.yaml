@@ -6,14 +6,6 @@ receivers:
         endpoint: 0.0.0.0:11800
       http:
         endpoint: 0.0.0.0:12800
-  # OTLP receiver for traces (external clients)
-  otlp:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
-      http:
-        endpoint: 0.0.0.0:4318
-
 
   # Prometheus receiver (scrape metrics)
   prometheus:
@@ -124,19 +116,19 @@ service:
     # Metrics pipeline
     metrics:
       receivers: [prometheus]
-      processors: [batch, resource]
+      processors: [resource]
       exporters: [otlp/dataprepper-metrics]
     
     # Traces pipeline - receives OTLP traces from external clients
     traces:
-      receivers: [otlp,skywalking]
-      processors: [batch, resource]
+      receivers: [skywalking]
+      processors: [resource]
       exporters: [otlp/dataprepper-traces]
 
     # Logs pipeline - collect application logs
     logs:
       receivers: [filelog]
-      processors: [batch, resource, transform]
+      processors: [resource, transform]
       exporters: [opensearch/logs]
   
   telemetry:
