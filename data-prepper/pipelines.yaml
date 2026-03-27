@@ -54,9 +54,12 @@ raw-trace-pipeline:
     - opensearch:
         hosts:
           - "http://opensearch:9200"
-        index_type: trace-analytics-raw
+        index_type: custom
+        index: "otel-v1-apm-span-%{yyyy.MM.dd}"
         bulk_size: 20
         flush_timeout: 30
+        document_id_field: "traceId"
+        dlq_file: "/usr/share/data-prepper/data/prepper-writer-dlq.log"
 
 # Service map pipeline
 service-map-pipeline:

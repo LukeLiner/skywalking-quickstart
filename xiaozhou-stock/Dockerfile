@@ -9,8 +9,7 @@ WORKDIR /app
 COPY skywalking-agent/apache-skywalking-java-agent-9.5.0.tgz /app/
 RUN tar -xzf /app/apache-skywalking-java-agent-9.5.0.tgz -C /app/ && rm /app/apache-skywalking-java-agent-9.5.0.tgz
 
-# Enable Kafka Reporter Plugin
-RUN cp /app/skywalking-agent/optional-reporter-plugins/kafka-reporter-plugin-*.jar /app/skywalking-agent/plugins/ 2>/dev/null || true
+# Kafka Reporter is disabled - use gRPC to send traces to otel-collector
 
 # Create log directory
 RUN mkdir -p /var/log/apps/xiaozhou-stock

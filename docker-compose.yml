@@ -17,36 +17,6 @@ services:
     networks:
       - skywalking-net
 
-  # SkyWalking OAP - 接收 Agent 数据并转发到 OTel Collector
-  # skywalking-oap:
-  #   build:
-  #     context: .
-  #     dockerfile: skywalking-oap/Dockerfile
-  #   container_name: skywalking-oap
-  #   ports:
-  #     - "11800:11800"  # gRPC port for agents
-  #     - "12800:12800"  # HTTP port for API
-  #   environment:
-  #     - SW_STORAGE=elasticsearch
-  #     - SW_STORAGE_ES_CLUSTER_NODES=opensearch:9200
-  #     - SW_STORAGE_ES_INDEX_REPLICAS=0
-  #     - SW_STORAGE_ES_INDEX_SHARDS=2
-  #     # Kafka Fetcher 已禁用（不再从 Kafka 消费）
-  #     - SW_KAFKA_FETCHER=-
-  #     # Exporter 已禁用 - 直接存储到 OpenSearch
-  #     - SW_EXPORTER=-
-  #   healthcheck:
-  #     test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/12800"]
-  #     interval: 30s
-  #     timeout: 10s
-  #     retries: 3
-  #     start_period: 120s
-  #   networks:
-  #     - skywalking-net
-  #   depends_on:
-  #     opensearch:
-  #       condition: service_started
-
   mysql:
     image: mysql:8.0
     container_name: mysql-db
@@ -80,9 +50,8 @@ services:
       - SW_AGENT_NAME=xiaozhou-order
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
-      # Send traces to OAP server via gRPC
+      # Send traces to OAP server via SkyWalking gRPC protocol (port 11800)
       - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
-      - JAVA_OPTS=-Dskywalking.collector.backend_service=otel-collector:11800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -91,6 +60,8 @@ services:
         condition: service_started
     networks:
       - skywalking-net
+    extra_hosts:
+      - "otel-collector:host-gateway"
 
   xiaozhou-product:
     build:
@@ -110,9 +81,8 @@ services:
       - SW_AGENT_NAME=xiaozhou-product
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
-      # Send traces to OAP server via gRPC
+      # Send traces to OAP server via SkyWalking gRPC protocol (port 11800)
       - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
-      - JAVA_OPTS=-Dskywalking.collector.backend_service=otel-collector:11800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -123,6 +93,8 @@ services:
         condition: service_started
     networks:
       - skywalking-net
+    extra_hosts:
+      - "otel-collector:host-gateway"
 
   xiaozhou-stock:
     build:
@@ -142,9 +114,8 @@ services:
       - SW_AGENT_NAME=xiaozhou-stock
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
-      # Send traces to OAP server via gRPC
+      # Send traces to OAP server via SkyWalking gRPC protocol (port 11800)
       - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
-      - JAVA_OPTS=-Dskywalking.collector.backend_service=otel-collector:11800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -155,6 +126,8 @@ services:
         condition: service_started
     networks:
       - skywalking-net
+    extra_hosts:
+      - "otel-collector:host-gateway"
 
   # OpenSearch for log/metrics/traces storage
   opensearch:
@@ -229,6 +202,8 @@ services:
     ports:
       - "4317:4317"    # OTLP gRPC receiver
       - "4318:4318"    # OTLP HTTP receiver
+      - "11800:11800"  # SkyWalking gRPC receiver
+      - "12800:12800"  # SkyWalking HTTP receiver
       - "21892:21892"  # Receive traces from SkyWalking OAP
       - "8889:8889"    # Prometheus metrics endpoint
     volumes:
