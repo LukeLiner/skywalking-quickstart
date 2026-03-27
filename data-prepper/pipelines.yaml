@@ -24,7 +24,7 @@ otel-metrics-pipeline:
 
 # ============== OTel Trace Pipeline ==============
 # Entry pipeline: receive OTLP traces
-entry-pipeline:
+otel-trace-pipeline:
   source:
     otel_trace_source:
       port: 21890
@@ -43,7 +43,7 @@ entry-pipeline:
 raw-trace-pipeline:
   source:
     pipeline:
-      name: "entry-pipeline"
+      name: "otel-trace-pipeline"
   buffer:
     bounded_blocking:
       buffer_size: 51200
@@ -62,7 +62,7 @@ raw-trace-pipeline:
 service-map-pipeline:
   source:
     pipeline:
-      name: "entry-pipeline"
+      name: "otel-trace-pipeline"
   buffer:
     bounded_blocking:
       buffer_size: 51200

@@ -1,5 +1,3 @@
-
-
 services:
   nacos:
     image: nacos/nacos-server:v2.2.3
@@ -19,59 +17,35 @@ services:
     networks:
       - skywalking-net
 
-  # SkyWalking OAP - NOT receiving agent traces in Full OTel mode
-  # Agents report to OTel Collector instead
-  skywalking-oap:
-    build:
-      context: .
-      dockerfile: skywalking-oap/Dockerfile
-    container_name: skywalking-oap
-    ports:
-      - "11800:11800"  # gRPC port for agents
-      - "12800:12800"  # HTTP port for UI
-    environment:
-      - SW_STORAGE=elasticsearch
-      - SW_STORAGE_ES_CLUSTER_NODES=opensearch:9200
-      # When DISABLE_SECURITY_PLUGIN=true, no auth required
-      # - SW_STORAGE_ES_USER=admin
-      # - SW_STORAGE_ES_PASSWORD=admin
-      - SW_STORAGE_ES_INDEX_REPLICAS=0
-      - SW_STORAGE_ES_INDEX_SHARDS=2
-      # Kafka Fetcher Configuration - consume from Kafka
-      - SW_KAFKA_FETCHER=default
-      - SW_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - SW_KAFKA_FETCHER_GROUP_ID=skywalking-oap
-      - SW_KAFKA_FETCHER_TOPIC_TRACING=sw-traces
-      - SW_KAFKA_FETCHER_TOPIC_METRICS=sw-metrics
-      - SW_KAFKA_FETCHER_ENABLE_NATIVE_PROTO_LOG=true
-      # Kafka Producer Config (for admin client)
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-    healthcheck:
-      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/12800"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-    networks:
-      - skywalking-net
-    depends_on:
-      opensearch:
-        condition: service_started
-      kafka:
-        condition: service_healthy
-
-  skywalking-ui:
-    image: apache/skywalking-ui:9.4.0
-    container_name: skywalking-ui
-    depends_on:
-      skywalking-oap:
-        condition: service_healthy
-    ports:
-      - "8080:8080"
-    environment:
-      - SW_OAP_ADDRESS=http://skywalking-oap:12800
-    networks:
-      - skywalking-net
+  # SkyWalking OAP - 接收 Agent 数据并转发到 OTel Collector
+  # skywalking-oap:
+  #   build:
+  #     context: .
+  #     dockerfile: skywalking-oap/Dockerfile
+  #   container_name: skywalking-oap
+  #   ports:
+  #     - "11800:11800"  # gRPC port for agents
+  #     - "12800:12800"  # HTTP port for API
+  #   environment:
+  #     - SW_STORAGE=elasticsearch
+  #     - SW_STORAGE_ES_CLUSTER_NODES=opensearch:9200
+  #     - SW_STORAGE_ES_INDEX_REPLICAS=0
+  #     - SW_STORAGE_ES_INDEX_SHARDS=2
+  #     # Kafka Fetcher 已禁用（不再从 Kafka 消费）
+  #     - SW_KAFKA_FETCHER=-
+  #     # Exporter 已禁用 - 直接存储到 OpenSearch
+  #     - SW_EXPORTER=-
+  #   healthcheck:
+  #     test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/12800"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 120s
+  #   networks:
+  #     - skywalking-net
+  #   depends_on:
+  #     opensearch:
+  #       condition: service_started
 
   mysql:
     image: mysql:8.0
@@ -91,50 +65,6 @@ services:
       timeout: 20s
       retries: 10
 
-  # ============== Kafka Infrastructure ==============
-  zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0
-    container_name: zookeeper
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
-    networks:
-      - skywalking-net
-    healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "2181"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  kafka:
-    image: confluentinc/cp-kafka:7.5.0
-    container_name: kafka
-    depends_on:
-      zookeeper:
-        condition: service_healthy
-    ports:
-      - "9092:9092"
-      - "29092:29092"
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
-      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
-    healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
-      interval: 10s
-      timeout: 10s
-      retries: 10
-      start_period: 30s
-    networks:
-      skywalking-net:
-        ipv4_address: 172.20.0.10
-
   xiaozhou-order:
     build:
       context: .
@@ -151,16 +81,14 @@ services:
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
       # Send traces to OAP server via gRPC
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
-      - JAVA_OPTS=-Dskywalking.collector.backend_service=skywalking-oap:11800
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
+      - JAVA_OPTS=-Dskywalking.collector.backend_service=otel-collector:11800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
     depends_on:
       nacos:
         condition: service_started
-      kafka:
-        condition: service_healthy
     networks:
       - skywalking-net
 
@@ -183,8 +111,8 @@ services:
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
       # Send traces to OAP server via gRPC
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
-      - JAVA_OPTS=-Dskywalking.collector.backend_service=skywalking-oap:11800
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
+      - JAVA_OPTS=-Dskywalking.collector.backend_service=otel-collector:11800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -193,8 +121,6 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
-      kafka:
-        condition: service_healthy
     networks:
       - skywalking-net
 
@@ -217,8 +143,8 @@ services:
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
       # Send traces to OAP server via gRPC
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=skywalking-oap:11800
-      - JAVA_OPTS=-Dskywalking.collector.backend_service=skywalking-oap:11800
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
+      - JAVA_OPTS=-Dskywalking.collector.backend_service=otel-collector:11800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -227,25 +153,10 @@ services:
         condition: service_healthy
       nacos:
         condition: service_started
-      kafka:
-        condition: service_healthy
     networks:
       - skywalking-net
 
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
-    container_name: cadvisor
-    ports:
-      - "8081:8080"
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:rw
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    networks:
-      - skywalking-net
-
-  # OpenSearch for log/metrics/traces storage (official recommended version 2.8.0)
+  # OpenSearch for log/metrics/traces storage
   opensearch:
     image: opensearchproject/opensearch:2.8.0
     container_name: opensearch
@@ -285,7 +196,7 @@ services:
     depends_on:
       - opensearch
 
-  # Neo4j Graph Database for resource topology
+  # Neo4j Graph Database for resource topology (CMDB)
   neo4j:
     image: neo4j:5.14.0
     container_name: neo4j
@@ -318,8 +229,7 @@ services:
     ports:
       - "4317:4317"    # OTLP gRPC receiver
       - "4318:4318"    # OTLP HTTP receiver
-      # - "11800:11800"  # SkyWalking gRPC receiver (agents report here)
-      # - "12800:12800"  # SkyWalking HTTP receiver
+      - "21892:21892"  # Receive traces from SkyWalking OAP
       - "8889:8889"    # Prometheus metrics endpoint
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
@@ -348,8 +258,6 @@ services:
     depends_on:
       opensearch:
         condition: service_started
-      kafka:
-        condition: service_healthy
     restart: always
 
 networks:
