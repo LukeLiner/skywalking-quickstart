@@ -49,11 +49,12 @@ receivers:
     include_file_name: true
     include_file_path: true
     operators:
-      - type: json_parser
-        parse_from: body
-        timestamp:
-          parse_from: body.timestamp
-          layout: '%Y-%m-%d %H:%M:%S'
+      - type: move
+        from: attributes["log.file.path"]
+        to: resource["log.file.path"]
+      - type: move
+        from: attributes["log.file.name"]
+        to: resource["log.file.name"]
 
 # Processors
 processors:
@@ -71,17 +72,12 @@ processors:
         value: "production"
         action: insert
 
-  # Transform logs to add trace context
+  # Transform logs to add service name
   transform:
-    trace_statements:
+    log_statements:
         - context: resource
           statements:
             - set(resource.attributes["service.name"], "unknown") where resource.attributes["service.name"] == nil
-
-    log_statements:
-      - context: resource
-        statements:
-          - set(resource.attributes["service.name"], "unknown") where resource.attributes["service.name"] == nil
 # Exporters
 exporters:
   # OTLP exporter to Data Prepper (for metrics)
@@ -96,12 +92,9 @@ exporters:
     tls:
       insecure: true
 
-  # Log exporter to OpenSearch (via Data Prepper)
-  # Note: Data Prepper doesn't have built-in log ingestion, 
-  # we use opensearch exporter directly for logs
-  elasticsearch/logs:
-    endpoint: "http://opensearch:9200"
-    logs_index: "logs-otel-%{yyyy.MM.dd}"
+  # OTLP exporter to Data Prepper (for logs)
+  otlp/data-prepper-logs:
+    endpoint: data-prepper:21892
     tls:
       insecure: true
 
@@ -124,7 +117,7 @@ service:
     logs:
       receivers: [filelog]
       processors: [batch, resource, transform]
-      exporters: [elasticsearch/logs]
+      exporters: [otlp/data-prepper-logs]
   
   telemetry:
     logs:

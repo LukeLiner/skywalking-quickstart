@@ -204,10 +204,9 @@ services:
       - "4318:4318"    # OTLP HTTP receiver
       - "11800:11800"  # SkyWalking gRPC receiver
       - "12800:12800"  # SkyWalking HTTP receiver
-      - "21892:21892"  # Receive traces from SkyWalking OAP
       - "8889:8889"    # Prometheus metrics endpoint
     volumes:
-      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+      - ./otel-collector-config-running.yaml:/etc/otel-collector-config.yaml
       - app-logs:/var/log/apps:ro
     networks:
       - skywalking-net
@@ -228,6 +227,7 @@ services:
     ports:
       - "21890:21890"  # OTel trace source
       - "21891:21891"  # OTel metrics source
+      - "21892:21892"  # OTel logs source
     networks:
       - skywalking-net
     depends_on:

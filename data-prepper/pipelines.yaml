@@ -1,5 +1,26 @@
 # Data Prepper Pipeline Configuration
-# OTLP Traces + Metrics to OpenSearch
+# OTLP Traces + Metrics + Logs to OpenSearch
+
+# ============== OTel Logs Pipeline ==============
+otel-logs-pipeline:
+  source:
+    otel_logs_source:
+      port: 21892
+      ssl: false
+  buffer:
+    bounded_blocking:
+      buffer_size: 10240
+      batch_size: 1024
+  sink:
+    - opensearch:
+        hosts:
+          - "http://opensearch:9200"
+        index_type: custom
+        index: "logs-otel-%{yyyy.MM.dd}"
+        bulk_size: 50
+        flush_timeout: 10
+        dlq_file: "/usr/share/data-prepper/data/prepper-writer-dlq.log"
+
 
 # ============== Metrics Pipeline (from OTel Collector) ==============
 otel-metrics-pipeline:
