@@ -42,11 +42,11 @@ public class OrderController {
     }
 
     /**
-     * Create a new order and send message to Kafka for stock processing
+     * Create a new order - MOCK DATA RETURN
      * 
      * @param productId Product ID
      * @param quantity Quantity to order
-     * @return Order result
+     * @return Mock order result
      */
     @RequestMapping("/createOrder")
     public Map<String, Object> createOrder(
@@ -55,45 +55,55 @@ public class OrderController {
         
         Map<String, Object> result = new HashMap<>();
         
-        try {
-            // Generate order ID
-            String orderId = UUID.randomUUID().toString();
-            logger.info("Creating order: orderId={}, productId={}, quantity={}", orderId, productId, quantity);
+        // Mock data return - no actual Kafka processing
+        logger.info("Mock createOrder: productId={}, quantity={}", productId, quantity);
 
-            // Get current SkyWalking trace ID for logging
-            String traceId = TraceContext.traceId();
-            logger.info("Current Trace ID: {}", traceId);
-
-            // Create order message
-            Map<String, Object> orderMessage = new HashMap<>();
-            orderMessage.put("orderId", orderId);
-            orderMessage.put("productId", productId);
-            orderMessage.put("quantity", quantity);
-            orderMessage.put("timestamp", System.currentTimeMillis());
-            orderMessage.put("traceId", traceId);
-
-            String messageJson = objectMapper.writeValueAsString(orderMessage);
-
-            // Send to Kafka with topic and key
-            kafkaTemplate.send(ORDER_STOCK_TOPIC, orderId, messageJson);
-            
-            logger.info("Order message sent to Kafka: topic={}, orderId={}, traceId={}", 
-                    ORDER_STOCK_TOPIC, orderId, traceId);
-
-            // Mark the exit span with the Kafka topic
-            ActiveSpan.tag("kafka.topic", ORDER_STOCK_TOPIC);
-            ActiveSpan.tag("kafka.key", orderId);
-
-            result.put("success", true);
-            result.put("orderId", orderId);
-            result.put("message", "Order created successfully, stock processing async");
-
-        } catch (Exception e) {
-            logger.error("Error creating order: {}", e.getMessage(), e);
-            result.put("success", false);
-            result.put("message", "Error creating order: " + e.getMessage());
-        }
+        result.put("success", true);
+        result.put("orderId", "MOCK-" + UUID.randomUUID().toString().substring(0, 8));
+        result.put("productId", productId);
+        result.put("quantity", quantity);
+        result.put("status", "CREATED");
+        result.put("message", "Mock order created successfully");
+        result.put("timestamp", System.currentTimeMillis());
         
         return result;
+        // try {
+        //     // Generate order ID
+        //     String orderId = UUID.randomUUID().toString();
+        //     logger.info("Creating order: orderId={}, productId={}, quantity={}", orderId, productId, quantity);
+
+        //     // Get current SkyWalking trace ID for logging
+        //     String traceId = TraceContext.traceId();
+        //     logger.info("Current Trace ID: {}", traceId);
+
+        //     // Create order message
+        //     Map<String, Object> orderMessage = new HashMap<>();
+        //     orderMessage.put("orderId", orderId);
+        //     orderMessage.put("productId", productId);
+        //     orderMessage.put("quantity", quantity);
+        //     orderMessage.put("timestamp", System.currentTimeMillis());
+        //     orderMessage.put("traceId", traceId);
+
+        //     String messageJson = objectMapper.writeValueAsString(orderMessage);
+
+        //     // Send to Kafka with topic and key
+        //     kafkaTemplate.send(ORDER_STOCK_TOPIC, orderId, messageJson);
+            
+        //     logger.info("Order message sent to Kafka: topic={}, orderId={}, traceId={}", 
+        //             ORDER_STOCK_TOPIC, orderId, traceId);
+
+        //     // Mark the exit span with the Kafka topic
+        //     ActiveSpan.tag("kafka.topic", ORDER_STOCK_TOPIC);
+        //     ActiveSpan.tag("kafka.key", orderId);
+
+        //     result.put("success", true);
+        //     result.put("orderId", orderId);
+        //     result.put("message", "Order created successfully, stock processing async");
+
+        // } catch (Exception e) {
+        //     logger.error("Error creating order: {}", e.getMessage(), e);
+        //     result.put("success", false);
+        //     result.put("message", "Error creating order: " + e.getMessage());
+        // }
     }
 }
