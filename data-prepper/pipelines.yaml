@@ -2,6 +2,7 @@
 # OTLP Traces + Metrics + Logs to OpenSearch
 
 # ============== OTel Logs Pipeline ==============
+# 接收来自 OTel Collector 的日志数据
 otel-logs-pipeline:
   source:
     otel_logs_source:
@@ -23,6 +24,7 @@ otel-logs-pipeline:
 
 
 # ============== Metrics Pipeline (from OTel Collector) ==============
+# 接收来自 OTel Collector 的指标数据
 otel-metrics-pipeline:
   source:
     otel_metrics_source:
@@ -44,7 +46,7 @@ otel-metrics-pipeline:
         flush_timeout: 30
 
 # ============== OTel Trace Pipeline ==============
-# Entry pipeline: receive OTLP traces
+# Entry pipeline: receive OTLP traces from OTel Collector
 otel-trace-pipeline:
   source:
     otel_trace_source:
@@ -61,6 +63,7 @@ otel-trace-pipeline:
         name: "service-map-pipeline"
 
 # Raw trace processing pipeline
+# 原始 Trace 数据处理 - 存储到 otel-v1-apm-span-* 索引
 raw-trace-pipeline:
   source:
     pipeline:
@@ -83,6 +86,7 @@ raw-trace-pipeline:
         dlq_file: "/usr/share/data-prepper/data/prepper-writer-dlq.log"
 
 # Service map pipeline
+# 服务地图数据处理 - 生成拓扑图，存储到 otel-v1-apm-service-map-* 索引
 service-map-pipeline:
   source:
     pipeline:

@@ -7,6 +7,14 @@ receivers:
       http:
         endpoint: 0.0.0.0:12800
 
+  # 接收 SkyWalking OAP exporter 发送的 OTLP 数据
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
   # Prometheus receiver (scrape metrics)
   prometheus:
     config:
@@ -84,6 +92,16 @@ processors:
         - context: resource
           statements:
             - set(resource.attributes["service.name"], "unknown") where resource.attributes["service.name"] == nil
+
+  # OTLP processor to ensure proper OTLP format for traces
+  transform/traces:
+    error_mode: ignore
+    trace_statements:
+      - context: resource
+        statements:
+          - keep_keys(resource.attributes, ["service.name", "service.namespace", "service.instance.id", "service.version", "deployment.environment"])
+          - set(resource.attributes["telemetry.sdk.name"], "opentelemetry")
+          - set(resource.attributes["telemetry.sdk.language"], "java")
 # Exporters
 exporters:
   # OTLP exporter to Data Prepper (for metrics)
@@ -121,8 +139,8 @@ service:
     
     # Traces pipeline - receives OTLP traces from external clients
     traces:
-      receivers: [skywalking]
-      processors: [resource]
+      receivers: [skywalking, otlp]
+      processors: [resource, transform/traces, batch]
       exporters: [otlp/dataprepper-traces]
 
     # Logs pipeline - collect application logs

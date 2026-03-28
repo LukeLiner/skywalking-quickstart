@@ -1,15 +1,22 @@
-#?????
+# 服务配置
 spring:
   application:
     name: xiaozhou-product
   cloud:
     nacos:
       discovery:
-        #nacos?????
-        server-addr: localhost:8848
-        #nacos???????
+        #nacos 服务地址（Docker 网络中使用容器名）
+        server-addr: nacos:8848
+        #nacos 认证信息
         username: nacos
         password: nacos
+        # 心跳配置（增强服务注册稳定性）
+        heart-beat-interval: 5000
+        heart-beat-timeout: 15000
+        ip-delete-timeout: 30000
+        # 注册配置
+        register-enabled: true
+        watch-delay: 3000
   datasource:
       url: jdbc:mysql:///mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true
       username: root
