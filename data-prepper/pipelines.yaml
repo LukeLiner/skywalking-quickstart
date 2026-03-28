@@ -1,49 +1,49 @@
 # Data Prepper Pipeline Configuration
-# OTLP Traces + Metrics + Logs to OpenSearch
+# OTLP Traces only (Metrics and Logs disabled)
 
-# ============== OTel Logs Pipeline ==============
+# ============== OTel Logs Pipeline - DISABLED ==============
 # 接收来自 OTel Collector 的日志数据
-otel-logs-pipeline:
-  source:
-    otel_logs_source:
-      port: 21892
-      ssl: false
-  buffer:
-    bounded_blocking:
-      buffer_size: 10240
-      batch_size: 1024
-  sink:
-    - opensearch:
-        hosts:
-          - "http://opensearch:9200"
-        index_type: custom
-        index: "logs-otel-%{yyyy.MM.dd}"
-        bulk_size: 50
-        flush_timeout: 10
-        dlq_file: "/usr/share/data-prepper/data/prepper-writer-dlq.log"
+# otel-logs-pipeline:
+#   source:
+#     otel_logs_source:
+#       port: 21892
+#       ssl: false
+#   buffer:
+#     bounded_blocking:
+#       buffer_size: 10240
+#       batch_size: 1024
+#   sink:
+#     - opensearch:
+#         hosts:
+#           - "http://opensearch:9200"
+#         index_type: custom
+#         index: "logs-otel-%{yyyy.MM.dd}"
+#         bulk_size: 50
+#         flush_timeout: 10
+#         dlq_file: "/usr/share/data-prepper/data/prepper-writer-dlq.log"
 
 
-# ============== Metrics Pipeline (from OTel Collector) ==============
+# ============== Metrics Pipeline (from OTel Collector) - DISABLED ==============
 # 接收来自 OTel Collector 的指标数据
-otel-metrics-pipeline:
-  source:
-    otel_metrics_source:
-      port: 21891
-      ssl: false
-  buffer:
-    bounded_blocking:
-      buffer_size: 5120
-      batch_size: 512
-  processor:
-    - otel_metrics_raw_processor:
-  sink:
-    - opensearch:
-        hosts:
-          - "http://opensearch:9200"
-        index_type: custom
-        index: "metrics-otel-%{yyyy.MM.dd}"
-        bulk_size: 20
-        flush_timeout: 30
+# otel-metrics-pipeline:
+#   source:
+#     otel_metrics_source:
+#       port: 21891
+#       ssl: false
+#   buffer:
+#     bounded_blocking:
+#       buffer_size: 5120
+#       batch_size: 512
+#   processor:
+#     - otel_metrics_raw_processor:
+#   sink:
+#     - opensearch:
+#         hosts:
+#           - "http://opensearch:9200"
+#         index_type: custom
+#         index: "metrics-otel-%{yyyy.MM.dd}"
+#         bulk_size: 20
+#         flush_timeout: 30
 
 # ============== OTel Trace Pipeline ==============
 # Entry pipeline: receive OTLP traces from OTel Collector
@@ -73,7 +73,7 @@ raw-trace-pipeline:
       buffer_size: 51200
       batch_size: 800
   processor:
-    - otel_trace_raw:
+    - otel_traces:
   sink:
     - opensearch:
         hosts:
@@ -82,7 +82,7 @@ raw-trace-pipeline:
         index: "otel-v1-apm-span-%{yyyy.MM.dd}"
         bulk_size: 20
         flush_timeout: 30
-        document_id_field: "traceId"
+        document_id: "traceId"
         dlq_file: "/usr/share/data-prepper/data/prepper-writer-dlq.log"
 
 # Service map pipeline

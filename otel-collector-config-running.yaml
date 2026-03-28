@@ -1,9 +1,10 @@
 receivers:
-  otlp/grpc:
-    endpoint: 0.0.0.0:4317
-  otlp/http:
-    endpoint: 0.0.0.0:4318
-    include_metadata: true
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
 
   # Prometheus receiver (scrape metrics) - DISABLED
   # prometheus:
@@ -99,8 +100,8 @@ exporters:
   #   tls:
   #     insecure: true
   
-  # OTLP exporter to Data Prepper (for traces from OAP)
-  otlp/dataprepper-traces:
+  # OTLP gRPC exporter to Data Prepper (for traces from OAP)
+  otlp_grpc/dataprepper-traces:
     endpoint: data-prepper:21890
     tls:
       insecure: true
@@ -128,9 +129,9 @@ service:
     
     # Traces pipeline - receives OTLP traces from external clients
     traces:
-      receivers: [otlp/grpc, otlp/http]
+      receivers: [otlp]
       processors: [resource, transform/traces, batch]
-      exporters: [otlp/dataprepper-traces]
+      exporters: [otlp_grpc/dataprepper-traces]
 
     # Logs pipeline - collect application logs - DISABLED
     # logs:

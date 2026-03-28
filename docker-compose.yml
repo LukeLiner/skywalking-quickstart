@@ -139,7 +139,7 @@ services:
       retries: 5
       start_period: 60s
 
-  # Data Prepper for metrics and traces ingestion to OpenSearch
+  # Data Prepper for traces ingestion to OpenSearch (metrics and logs disabled)
   data-prepper:
     image: opensearchproject/data-prepper:2.6.1
     container_name: data-prepper
@@ -148,8 +148,8 @@ services:
       - ./data-prepper/data-prepper-config.yaml:/usr/share/data-prepper/config/data-prepper-config.yaml
     ports:
       - "21890:21890"  # OTel trace source
-      - "21891:21891"  # OTel metrics source
-      - "21892:21892"  # OTel logs source
+      # - "21891:21891"  # OTel metrics source - DISABLED
+      # - "21892:21892"  # OTel logs source - DISABLED
     networks:
       - skywalking-net
     depends_on:
@@ -157,7 +157,7 @@ services:
         condition: service_started
     restart: always
 
-  # OpenTelemetry Collector for logs, metrics, and traces
+  # OpenTelemetry Collector for traces only (logs and metrics disabled)
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
@@ -165,9 +165,9 @@ services:
     ports:
       - "4317:4317"  # OTLP gRPC receiver
       - "4318:4318"  # OTLP HTTP receiver
-      - "8888:8888"  # Prometheus metrics scrape endpoint
+      # - "8888:8888"  # Prometheus metrics scrape endpoint - DISABLED
     volumes:
-      - ./otel-collector-config-running.yaml:/etc/otel-collector-config.yaml
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
       - app-logs:/var/log/apps:ro
     networks:
       - skywalking-net
@@ -187,13 +187,15 @@ services:
       - "8089:8089"
     environment:
       - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
-      # OpenTelemetry 配置
+      # OpenTelemetry 配置 - 使用 HTTP 协议和端口 4318
       - OTEL_SERVICE_NAME=xiaozhou-order
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+      - OTEL_METRICS_EXPORTER=none
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
-      # 采样配置 (每 3 秒采样 1 次)
-      - OTEL_TRACES_SAMPLER=parentbased_traceidratio
-      - OTEL_TRACES_SAMPLER_ARG=0.33
+      # 启用详细日志
+      - OTEL_EXPORTER_OTLP_TRACES_DEBUG=true
+      - OTEL_LOG_LEVEL=debug
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -218,13 +220,12 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
-      # OpenTelemetry 配置
+      # OpenTelemetry 配置 - 使用 HTTP 协议和端口 4318
       - OTEL_SERVICE_NAME=xiaozhou-product
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+      - OTEL_METRICS_EXPORTER=none
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
-      # 采样配置 (每 3 秒采样 1 次)
-      - OTEL_TRACES_SAMPLER=parentbased_traceidratio
-      - OTEL_TRACES_SAMPLER_ARG=0.33
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -251,13 +252,12 @@ services:
       - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
-      # OpenTelemetry 配置
+      # OpenTelemetry 配置 - 使用 HTTP 协议和端口 4318
       - OTEL_SERVICE_NAME=xiaozhou-stock
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+      - OTEL_METRICS_EXPORTER=none
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
-      # 采样配置 (每 3 秒采样 1 次)
-      - OTEL_TRACES_SAMPLER=parentbased_traceidratio
-      - OTEL_TRACES_SAMPLER_ARG=0.33
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
