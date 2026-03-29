@@ -149,6 +149,7 @@ services:
     ports:
       - "21890:21890"  # OTel trace source
       - "21892:21892"  # OTel logs source
+      - "4900:4900"    # Data Prepper server (health check)
       # - "21891:21891"  # OTel metrics source - DISABLED
     networks:
       - skywalking-net
@@ -156,7 +157,7 @@ services:
       opensearch:
         condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:21890/logs/ping"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:21890/v1/traces"]
       interval: 10s
       timeout: 5s
       retries: 5

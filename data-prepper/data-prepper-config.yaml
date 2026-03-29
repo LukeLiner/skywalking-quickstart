@@ -1,2 +1,3 @@
 # Data Prepper Configuration
 ssl: false
+server_port: 4900
