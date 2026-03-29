@@ -15,4 +15,5 @@ RUN mkdir -p /var/log/apps/xiaozhou-stock
 COPY xiaozhou-stock/target/xiaozhou-stock-0.0.1-SNAPSHOT.jar app.jar
 
 EXPOSE 8091
-ENTRYPOINT ["java", "-javaagent:/app/opentelemetry-javaagent.jar", "-Xmx256m", "-jar", "app.jar"]
+# Disable Kafka instrumentation to fix compatibility with Spring Boot 2.3.0 + Spring Kafka
+ENTRYPOINT ["java", "-javaagent:/app/opentelemetry-javaagent.jar", "-Dotel.instrumentation.kafka.enabled=false", "-Xmx256m", "-jar", "app.jar"]
