@@ -41,15 +41,15 @@ management:
       application: ${spring.application.name}
 
 # OpenTelemetry Configuration
-otel:
-  exporter:
-    otlp:
-      traces:
-        endpoint: http://otel-collector:4318
-        protocol: http/protobuf
-  service:
-    name: ${spring.application.name}
-  metrics:
-    exporter: none
-  logs:
-    exporter: none
+# otel:
+#   exporter:
+#     otlp:
+#       traces:
+#         endpoint: http://otel-collector:4318
+#         protocol: http/protobuf
+#   service:
+#     name: ${spring.application.name}
+#   metrics:
+#     exporter: none
+#   logs:
+#     exporter: none

@@ -139,7 +139,7 @@ services:
       retries: 5
       start_period: 60s
 
-  # Data Prepper for traces ingestion to OpenSearch (metrics and logs disabled)
+  # Data Prepper for traces and logs ingestion to OpenSearch
   data-prepper:
     image: opensearchproject/data-prepper:2.6.1
     container_name: data-prepper
@@ -148,8 +148,8 @@ services:
       - ./data-prepper/data-prepper-config.yaml:/usr/share/data-prepper/config/data-prepper-config.yaml
     ports:
       - "21890:21890"  # OTel trace source
+      - "21892:21892"  # OTel logs source
       # - "21891:21891"  # OTel metrics source - DISABLED
-      # - "21892:21892"  # OTel logs source - DISABLED
     networks:
       - skywalking-net
     depends_on:
@@ -157,7 +157,7 @@ services:
         condition: service_started
     restart: always
 
-  # OpenTelemetry Collector for traces only (logs and metrics disabled)
+  # OpenTelemetry Collector for traces and logs
   otel-collector:
     image: otel/opentelemetry-collector-contrib:latest
     container_name: otel-collector
@@ -191,11 +191,12 @@ services:
       - OTEL_SERVICE_NAME=xiaozhou-order
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
       - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+      # 启用日志采集
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://otel-collector:4318/v1/logs
+      - OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
       - OTEL_METRICS_EXPORTER=none
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
-      # 启用详细日志
-      - OTEL_EXPORTER_OTLP_TRACES_DEBUG=true
-      - OTEL_LOG_LEVEL=debug
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -224,6 +225,10 @@ services:
       - OTEL_SERVICE_NAME=xiaozhou-product
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
       - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+      # 启用日志采集
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://otel-collector:4318/v1/logs
+      - OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
       - OTEL_METRICS_EXPORTER=none
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
     volumes:
@@ -256,6 +261,10 @@ services:
       - OTEL_SERVICE_NAME=xiaozhou-stock
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
       - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+      # 启用日志采集
+      - OTEL_LOGS_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://otel-collector:4318/v1/logs
+      - OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
       - OTEL_METRICS_EXPORTER=none
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
     volumes:
