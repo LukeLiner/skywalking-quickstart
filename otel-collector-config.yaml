@@ -1,9 +1,11 @@
 receivers:
-  otlp/grpc:
-    endpoint: 0.0.0.0:4317
-  otlp/http:
-    endpoint: 0.0.0.0:4318
-    include_metadata: true
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+        include_metadata: true
 
   # Prometheus receiver (scrape metrics) - DISABLED
   # prometheus:
@@ -91,6 +93,7 @@ processors:
           - keep_keys(resource.attributes, ["service.name", "service.namespace", "service.instance.id", "service.version", "deployment.environment"])
           - set(resource.attributes["telemetry.sdk.name"], "opentelemetry")
           - set(resource.attributes["telemetry.sdk.language"], "java")
+
 # Exporters
 exporters:
   # OTLP exporter to Data Prepper (for metrics) - DISABLED
@@ -99,7 +102,7 @@ exporters:
   #   tls:
   #     insecure: true
   
-  # OTLP exporter to Data Prepper (for traces from OAP)
+  # OTLP gRPC exporter to Data Prepper (for traces)
   otlp/dataprepper-traces:
     endpoint: data-prepper:21890
     tls:
@@ -128,7 +131,7 @@ service:
     
     # Traces pipeline - receives OTLP traces from external clients
     traces:
-      receivers: [otlp/grpc, otlp/http]
+      receivers: [otlp]
       processors: [resource, transform/traces, batch]
       exporters: [otlp/dataprepper-traces]
 

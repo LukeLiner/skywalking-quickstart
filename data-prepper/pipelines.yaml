@@ -47,15 +47,20 @@
 
 # ============== OTel Trace Pipeline ==============
 # Entry pipeline: receive OTLP traces from OTel Collector
+# Following OpenSearch official trace analytics configuration
 otel-trace-pipeline:
+  workers: 8
+  delay: "100"
   source:
     otel_trace_source:
       port: 21890
       ssl: false
+      authentication:
+        unauthenticated:
   buffer:
     bounded_blocking:
-      buffer_size: 51200
-      batch_size: 800
+      buffer_size: 500000
+      batch_size: 10000
   sink:
     - pipeline:
         name: "raw-trace-pipeline"
@@ -64,37 +69,36 @@ otel-trace-pipeline:
 
 # Raw trace processing pipeline
 # 原始 Trace 数据处理 - 存储到 otel-v1-apm-span-* 索引
+# Fixed: index_type changed to trace-analytics-raw for OpenSearch Dashboards compatibility
 raw-trace-pipeline:
+  workers: 8
   source:
     pipeline:
       name: "otel-trace-pipeline"
   buffer:
     bounded_blocking:
-      buffer_size: 51200
-      batch_size: 800
+      buffer_size: 500000
+      batch_size: 10000
   processor:
     - otel_traces:
   sink:
     - opensearch:
         hosts:
           - "http://opensearch:9200"
-        index_type: custom
-        index: "otel-v1-apm-span-%{yyyy.MM.dd}"
-        bulk_size: 20
-        flush_timeout: 30
-        document_id: "traceId"
-        dlq_file: "/usr/share/data-prepper/data/prepper-writer-dlq.log"
+        index_type: trace-analytics-raw
 
 # Service map pipeline
 # 服务地图数据处理 - 生成拓扑图，存储到 otel-v1-apm-service-map-* 索引
 service-map-pipeline:
+  workers: 8
+  delay: "100"
   source:
     pipeline:
       name: "otel-trace-pipeline"
   buffer:
     bounded_blocking:
-      buffer_size: 51200
-      batch_size: 800
+      buffer_size: 500000
+      batch_size: 10000
   processor:
     - service_map_stateful:
         window_duration: 180

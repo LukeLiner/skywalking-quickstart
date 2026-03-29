@@ -6,8 +6,6 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.xiaozhou.xiaozhouproduct.entity.Product;
 import com.xiaozhou.xiaozhouproduct.mapper.ProductMapper;
 import com.xiaozhou.xiaozhouproduct.service.ProductService;
-import org.apache.skywalking.apm.toolkit.trace.Tag;
-import org.apache.skywalking.apm.toolkit.trace.Trace;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -16,8 +14,6 @@ public class ProductServiceImpl extends ServiceImpl<ProductMapper, Product> impl
     @Autowired
     private ProductMapper productMapper;
     @Override
-    @Trace
-    @Tag(key = "pageFind", value = "returnedObj")
     public IPage<Product> pageFind(Page<Product> objectPage) {
         return productMapper.selectPage(objectPage, null);
     }

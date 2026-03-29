@@ -1,19 +1,19 @@
 package com.xiaozhou.xiaozhouorder.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.skywalking.apm.toolkit.trace.ActiveSpan;
-import org.apache.skywalking.apm.toolkit.trace.TraceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.support.MessageBuilder;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @RestController
 @RequestMapping("/order")
@@ -27,16 +27,34 @@ public class OrderController {
     private KafkaTemplate<String, String> kafkaTemplate;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    
+    private final AtomicInteger orderCounter = new AtomicInteger(0);
+
+    /**
+     * Scheduled task to generate trace data every 3 seconds
+     * Simulates getOrder API call for testing trace analytics
+     */
+    @Scheduled(fixedRate = 3000)
+    public void generateTraceData() {
+        int orderId = orderCounter.incrementAndGet();
+        try {
+            getOrderById(String.valueOf(orderId));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("Error generating trace data: {}", e.getMessage());
+        }
+    }
 
     @RequestMapping("/getOrder")
     public String getOrderById(@RequestParam(required = false) String id) throws InterruptedException {
         logger.info("Received getOrder request, orderId={}", id);
         
+        // Get SkyWalking trace ID for logging
         long startTime = System.currentTimeMillis();
         Thread.sleep(1000);
         long duration = System.currentTimeMillis() - startTime;
         
-        logger.info("Order query completed, orderId={}, duration={}ms", id, duration);
+        logger.info("Order query completed, orderId={}, duration={}ms, traceId={}", id, duration, "");
         
         return "orderId:" + id;
     }

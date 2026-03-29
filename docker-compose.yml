@@ -189,7 +189,7 @@ services:
       - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
       # OpenTelemetry 配置 - 使用 HTTP 协议和端口 4318
       - OTEL_SERVICE_NAME=xiaozhou-order
-      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
       - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
       - OTEL_METRICS_EXPORTER=none
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
@@ -222,7 +222,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=root
       # OpenTelemetry 配置 - 使用 HTTP 协议和端口 4318
       - OTEL_SERVICE_NAME=xiaozhou-product
-      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
       - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
       - OTEL_METRICS_EXPORTER=none
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
@@ -254,7 +254,7 @@ services:
       - SPRING_DATASOURCE_PASSWORD=root
       # OpenTelemetry 配置 - 使用 HTTP 协议和端口 4318
       - OTEL_SERVICE_NAME=xiaozhou-stock
-      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
       - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
       - OTEL_METRICS_EXPORTER=none
       - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production

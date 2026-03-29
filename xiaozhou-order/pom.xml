@@ -41,18 +41,7 @@
             <version>6.6</version>
         </dependency>
 
-        <!-- SkyWalking Logback Integration -->
-        <dependency>
-            <groupId>org.apache.skywalking</groupId>
-            <artifactId>apm-toolkit-logback-1.x</artifactId>
-            <version>9.0.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.apache.skywalking</groupId>
-            <artifactId>apm-toolkit-trace</artifactId>
-            <version>9.0.0</version>
-        </dependency>
+        <!-- OpenTelemetry SDK for tracing - using Java agent in Dockerfile, no need for starter -->
 
         <!-- Kafka Producer -->
         <dependency>
