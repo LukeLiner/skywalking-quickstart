@@ -41,6 +41,8 @@ entry-pipeline:
 
 # Raw trace processing pipeline
 raw-trace-pipeline:
+  workers: 4
+  delay: 5s
   source:
     pipeline:
       name: "entry-pipeline"
@@ -49,7 +51,7 @@ raw-trace-pipeline:
       buffer_size: 51200
       batch_size: 800
   processor:
-    - otel_trace_raw:
+    - otel_traces:
   sink:
     - opensearch:
         hosts:
@@ -68,8 +70,7 @@ service-map-pipeline:
       buffer_size: 51200
       batch_size: 800
   processor:
-    - service_map_stateful:
-        window_duration: 180
+    - service_map:
   sink:
     - opensearch:
         hosts:

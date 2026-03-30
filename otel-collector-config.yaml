@@ -6,6 +6,10 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
+  skywalking:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:11800
 
   # File log receiver
   filelog:
@@ -100,6 +104,12 @@ exporters:
     endpoint: data-prepper:21890
     tls:
       insecure: true
+    timeout: 30s
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
   
   # Prometheus exporter (keep existing Prometheus/Grafana)
   prometheus:
@@ -125,9 +135,9 @@ service:
     
     # Traces pipeline - receives OTLP traces from OTLP receiver
     traces:
-      receivers: [otlp]
+      receivers: [skywalking]
       processors: [batch, resource]
-      exporters: [otlp/dataprepper-traces, debug]
+      exporters: [otlp/dataprepper-traces]
   
   telemetry:
     logs:

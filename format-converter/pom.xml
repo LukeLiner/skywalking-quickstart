@@ -9,7 +9,7 @@
     <version>1.0.0</version>
     <packaging>jar</packaging>
 
-    <name>SkyWalking to OTLP Format Converter</name>
+    <name>format-converter</name>
     <description>Converts SkyWalking protobuf format to OTLP format for Kafka consumers</description>
 
     <parent>
