@@ -1,10 +1,55 @@
-# Docker images
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Maven
+target/
+.mvn/
+# Logs
+skywalking-agent/
+
 docker-images/
-
-# Save docker images script
-save-docker-images.ps1
-
-# Maven build output
-format-converter/target/
-xiaozhou-order/target/
-xiaozhou-product/target/
