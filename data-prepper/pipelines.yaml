@@ -100,8 +100,7 @@ service-map-pipeline:
       buffer_size: 500000
       batch_size: 10000
   processor:
-    - service_map_stateful:
-        window_duration: 180
+    - service_map:
   sink:
     - opensearch:
         hosts:
