@@ -1,17 +1,19 @@
 receivers:
-  # OTLP receiver for traces (if needed for other sources)
-  otlp:
-    protocols:
-      grpc:
-        endpoint: 0.0.0.0:4317
-      http:
-        endpoint: 0.0.0.0:4318
+  # OTLP receiver (如果应用直接发送 OTLP 数据)
+  # otlp:
+  #   protocols:
+  #     grpc:
+  #       endpoint: 0.0.0.0:4317
+  #     http:
+  #       endpoint: 0.0.0.0:4318
+
+  # SkyWalking receiver (用于接收 SkyWalking 格式的追踪数据)
   skywalking:
     protocols:
       grpc:
         endpoint: 0.0.0.0:11800
 
-  # File log receiver
+  # Filelog receiver (读取应用日志文件)
   filelog:
     include:
       - /var/log/apps/xiaozhou-order/*.log
@@ -38,7 +40,7 @@ receivers:
         from: attributes.logger_name
         to: attributes["logger.name"]
 
-  # Prometheus receiver (scrape metrics)
+  # Prometheus receiver (采集指标)
   prometheus:
     config:
       scrape_configs:
@@ -46,62 +48,47 @@ receivers:
           scrape_interval: 30s
           static_configs:
             - targets: ['localhost:8888']
-        
         - job_name: 'xiaozhou-order'
           scrape_interval: 30s
           static_configs:
             - targets: ['xiaozhou-order:8089']
           metrics_path: '/actuator/prometheus'
-        
         - job_name: 'xiaozhou-product'
           scrape_interval: 30s
           static_configs:
             - targets: ['xiaozhou-product:8090']
           metrics_path: '/actuator/prometheus'
-        
         - job_name: 'cadvisor'
           scrape_interval: 30s
           static_configs:
             - targets: ['cadvisor:8080']
-# 对数据进行预处理和增强。
-# 将数据分批发送，提高效率。每批最多 1024 条，或等待 10 秒后发送。
+
 processors:
+  filter/null_metrics:
+      metrics:
+        exclude:
+          match_type: expr
+          expressions:
+            - 'MetricValue("jvm_memory_max_bytes") == nil'
+            - 'MetricValue("process_cpu_usage") == nil'
   batch:
     timeout: 10s
     send_batch_size: 1024
-  
+
   resource:
     attributes:
       - key: deployment.environment
         value: "production"
         action: insert
-  
+
   resourcedetection:
     detectors: [env, system]
     timeout: 5s
 
 exporters:
-  # OpenSearch exporter for logs
-  opensearch/logs:
-    logs_index: logs-otel
-    http:
-      endpoint: http://opensearch:9200
-      timeout: 30s
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
-  
-  # OTLP exporter to Data Prepper (for metrics)
-  otlp/dataprepper-metrics:
-    endpoint: data-prepper:21891
-    tls:
-      insecure: true
-  
-  # OTLP exporter to Data Prepper (for traces)
-  otlp/dataprepper-traces:
-    endpoint: data-prepper:21890
+  # 统一 OTLP exporter，将所有信号发送到 Data Prepper 的统一入口
+  otlp:
+    endpoint: data-prepper:21890   # Data Prepper 统一 OTLP 端口
     tls:
       insecure: true
     timeout: 30s
@@ -109,36 +96,34 @@ exporters:
       enabled: true
       initial_interval: 5s
       max_interval: 30s
-      max_elapsed_time: 300s
-  
-  # Prometheus exporter (keep existing Prometheus/Grafana)
+
+  # Prometheus exporter (可选，用于暴露 Collector 自身的指标)
   prometheus:
     endpoint: "0.0.0.0:8889"
-  
-  # Debug exporter
+
+  # Debug exporter (调试用)
   debug:
     verbosity: detailed
     sampling_initial: 5
     sampling_thereafter: 200
-# 定义了三个数据处理管道，分别负责日志、指标和追踪。
+
 service:
   pipelines:
     logs:
       receivers: [filelog]
-      processors: [batch, resource, resourcedetection]
-      exporters: [opensearch/logs, debug]
-    
+      processors: [resourcedetection, resource, batch]   # 调整顺序，先检测资源
+      exporters: [otlp, debug]                           # 发送到统一 OTLP 端点
+
     metrics:
       receivers: [prometheus]
       processors: [batch, resource]
-      exporters: [otlp/dataprepper-metrics, prometheus]
-    
-    # Traces pipeline - receives OTLP traces from OTLP receiver
+      exporters: [otlp, prometheus]                      # 同时发送到 Data Prepper 和本地 Prometheus
+
     traces:
-      receivers: [skywalking]
+      receivers: [skywalking]                            # 注意：SkyWalking 格式可能需要转换
       processors: [batch, resource]
-      exporters: [otlp/dataprepper-traces]
-  
+      exporters: [otlp]                                  # 发送到统一 OTLP 端点
+
   telemetry:
     logs:
       level: info

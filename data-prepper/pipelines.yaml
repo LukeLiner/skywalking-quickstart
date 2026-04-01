@@ -1,80 +1,80 @@
-# Data Prepper Pipeline Configuration
-# OTLP Traces + Metrics to OpenSearch
+# pipelines.yaml
+version: "2"
 
-# ============== Metrics Pipeline (from OTel Collector) ==============
-otel-metrics-pipeline:
-  source:
-    otel_metrics_source:
-      port: 21891
-      ssl: false
-  buffer:
-    bounded_blocking:
-      buffer_size: 5120
-      batch_size: 512
-  processor:
-    - otel_metrics_raw_processor:
-  sink:
-    - opensearch:
-        hosts:
-          - "http://opensearch:9200"
-        index_type: custom
-        index: "metrics-otel-%{yyyy.MM.dd}"
-        bulk_size: 20
-        flush_timeout: 30
-
-# ============== OTel Trace Pipeline ==============
-# Entry pipeline: receive OTLP traces
+# 主入口 pipeline - 接收 OTLP 数据并按类型路由
 entry-pipeline:
   source:
-    otel_trace_source:
+    otlp:
       port: 21890
-      ssl: false
-  buffer:
-    bounded_blocking:
-      buffer_size: 51200
-      batch_size: 800
+      # 注意：Collector 中配置的 endpoint: data-prepper:21890 对应这里的端口
+      # 如果 Data Prepper 使用默认配置，端口为 21890
+      ssl: false                    # 若需要 TLS，改为 true 并配置证书
+      # request_timeout: 10000      # 可选，请求超时时间
+  route:
+    - logs: 'getEventType() == "LOG"'
+    - traces: 'getEventType() == "TRACE"'
+    - metrics: 'getEventType() == "METRIC"'
   sink:
     - pipeline:
-        name: "raw-trace-pipeline"
+        name: "logs-pipeline"
+        routes: ["logs"]
     - pipeline:
-        name: "service-map-pipeline"
+        name: "traces-pipeline"
+        routes: ["traces"]
+    - pipeline:
+        name: "metrics-pipeline"
+        routes: ["metrics"]
 
-# Raw trace processing pipeline
-raw-trace-pipeline:
-  workers: 4
-  delay: 5s
+# 日志处理 pipeline
+logs-pipeline:
   source:
     pipeline:
       name: "entry-pipeline"
-  buffer:
-    bounded_blocking:
-      buffer_size: 51200
-      batch_size: 800
   processor:
-    - otel_traces:
+    # 可选：添加自定义字段
+    - add_entries:
+        entries:
+          - key: "pipeline_type"
+            value: "logs"
+    # 可选：重命名字段
+    # - rename_keys:
+    #     entries:
+    #       - from_key: "body"
+    #         to_key: "message"
   sink:
     - opensearch:
-        hosts:
-          - "http://opensearch:9200"
-        index_type: trace-analytics-raw
-        bulk_size: 20
-        flush_timeout: 30
+        hosts: ["http://opensearch:9200"]     # OpenSearch 地址
+        username: "admin"                       # 用户名
+        # password: "${OPENSEARCH_PASSWORD}"      # 密码，建议用环境变量
+        index: "otel-logs-%{yyyy.MM.dd}"        # 按日期分索引
+        # 若需 trace analytics 功能，可使用 index_type: trace-analytics-raw
+        # index_type: trace-analytics-raw
+        insecure: true                          # 若 OpenSearch 使用自签名证书，设为 true
 
-# Service map pipeline
-service-map-pipeline:
+# 追踪处理 pipeline（如需）
+traces-pipeline:
   source:
     pipeline:
       name: "entry-pipeline"
-  buffer:
-    bounded_blocking:
-      buffer_size: 51200
-      batch_size: 800
   processor:
-    - service_map:
+    - otel_traces:                # 专门处理追踪数据的处理器
   sink:
     - opensearch:
-        hosts:
-          - "http://opensearch:9200"
-        index_type: trace-analytics-service-map
-        bulk_size: 20
-        flush_timeout: 30
+        hosts: ["http://opensearch:9200"]
+        username: "admin"
+        # password: "${OPENSEARCH_PASSWORD}"
+        index_type: trace-analytics-raw        # 使用预定义的 trace 索引模板
+
+# 指标处理 pipeline（如需）
+metrics-pipeline:
+  source:
+    pipeline:
+      name: "entry-pipeline"
+  processor:
+    - otel_metrics:              # 专门处理指标数据的处理器
+  sink:
+    - opensearch:
+        hosts: ["http://opensearch:9200"]
+        username: "admin"
+        # password: "${OPENSEARCH_PASSWORD}"
+        index: "metrics-otel-%{yyyy.MM.dd}"

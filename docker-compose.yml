@@ -145,9 +145,7 @@ services:
       - SW_AGENT_NAME=xiaozhou-order
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
-      # Enable Kafka reporter to send data to Kafka
       - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
-      # Configure Kafka topic to match OAP Kafka Fetcher
       - SW_PLUGIN_KAFKA_TOPIC_SEGMENT=sw-traces
       - SW_PLUGIN_KAFKA_TOPIC_METRICS=sw-metrics
       - JAVA_OPTS=-DSW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
@@ -180,13 +178,11 @@ services:
       - SW_AGENT_NAME=xiaozhou-product
       # Enable trace sampling (1 sample per 3 seconds)
       - SW_AGENT_SAMPLE=1
-      # Enable Kafka reporter to send data to Kafka
-      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=kafka:9092
+      - SW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
       - SW_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      # Configure Kafka topic to match OAP Kafka Fetcher
       - SW_PLUGIN_KAFKA_TOPIC_SEGMENT=sw-traces
       - SW_PLUGIN_KAFKA_TOPIC_METRICS=sw-metrics
-      - JAVA_OPTS=-DSW_AGENT_COLLECTOR_BACKEND_SERVICES=kafka:9092
+      - JAVA_OPTS=-DSW_AGENT_COLLECTOR_BACKEND_SERVICES=otel-collector:11800
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -246,7 +242,7 @@ services:
 
   # OpenSearch for log storage
   opensearch:
-    image: opensearchproject/opensearch:2.11.0
+    image: opensearchproject/opensearch:3.5.0
     container_name: opensearch
     environment:
       - discovery.type=single-node
@@ -270,7 +266,7 @@ services:
 
   # OpenSearch Dashboards for visualization
   opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:2.11.0
+    image: opensearchproject/opensearch-dashboards:3.5.0
     container_name: opensearch-dashboards
     ports:
       - "5601:5601"
@@ -286,12 +282,12 @@ services:
 
   # OpenTelemetry Collector for logs, metrics, and traces
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.147.0
     container_name: otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     ports:
-      - "4317:4317"    # OTLP gRPC receiver
-      - "4318:4318"    # OTLP HTTP receiver
+      # - "4317:4317"    # OTLP gRPC receiver
+      # - "4318:4318"    # OTLP HTTP receiver
       - "11800:11800"  # SkyWalking gRPC receiver (agents report here)
       - "8889:8889"    # Prometheus metrics endpoint
     volumes:
@@ -307,7 +303,7 @@ services:
 
   # Data Prepper for metrics and traces ingestion to OpenSearch
   data-prepper:
-    image: opensearchproject/data-prepper:2.6.1
+    image: opensearchproject/data-prepper:2.12.0
     container_name: data-prepper
     volumes:
       - ./data-prepper/pipelines.yaml:/usr/share/data-prepper/pipelines/pipelines.yaml
@@ -315,6 +311,8 @@ services:
     ports:
       - "21890:21890"  # OTel trace source
       - "21891:21891"  # OTel metrics source
+      - "21892:21892"  # OTel log source
+      - "4900:4900"
     networks:
       - skywalking-net
     depends_on:
