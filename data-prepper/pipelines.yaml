@@ -1,80 +1,96 @@
-# pipelines.yaml
 version: "2"
 
-# 主入口 pipeline - 接收 OTLP 数据并按类型路由
+# ==================== 入口 Pipeline ====================
 entry-pipeline:
   source:
     otlp:
       port: 21890
-      # 注意：Collector 中配置的 endpoint: data-prepper:21890 对应这里的端口
-      # 如果 Data Prepper 使用默认配置，端口为 21890
-      ssl: false                    # 若需要 TLS，改为 true 并配置证书
-      # request_timeout: 10000      # 可选，请求超时时间
+      ssl: false
   route:
     - logs: 'getEventType() == "LOG"'
     - traces: 'getEventType() == "TRACE"'
     - metrics: 'getEventType() == "METRIC"'
   sink:
+    # 日志路由
     - pipeline:
         name: "logs-pipeline"
         routes: ["logs"]
-    - pipeline:
-        name: "traces-pipeline"
-        routes: ["traces"]
+    # 指标路由
     - pipeline:
         name: "metrics-pipeline"
         routes: ["metrics"]
+    # Trace 路由到原始存储 Pipeline
+    - pipeline:
+        name: "traces-raw-pipeline"
+        routes: ["traces"]
+    # Trace 路由到 Service Map Pipeline（新增）
+    - pipeline:
+        name: "service-map-pipeline"
+        routes: ["traces"]
 
-# 日志处理 pipeline
+# ==================== 日志 Pipeline ====================
 logs-pipeline:
   source:
     pipeline:
       name: "entry-pipeline"
   processor:
-    # 可选：添加自定义字段
     - add_entries:
         entries:
           - key: "pipeline_type"
             value: "logs"
-    # 可选：重命名字段
-    # - rename_keys:
-    #     entries:
-    #       - from_key: "body"
-    #         to_key: "message"
-  sink:
-    - opensearch:
-        hosts: ["http://opensearch:9200"]     # OpenSearch 地址
-        username: "admin"                       # 用户名
-        # password: "${OPENSEARCH_PASSWORD}"      # 密码，建议用环境变量
-        index: "otel-logs-%{yyyy.MM.dd}"        # 按日期分索引
-        # 若需 trace analytics 功能，可使用 index_type: trace-analytics-raw
-        # index_type: trace-analytics-raw
-        insecure: true                          # 若 OpenSearch 使用自签名证书，设为 true
-
-# 追踪处理 pipeline（如需）
-traces-pipeline:
-  source:
-    pipeline:
-      name: "entry-pipeline"
-  processor:
-    - otel_traces:                # 专门处理追踪数据的处理器
   sink:
     - opensearch:
         hosts: ["http://opensearch:9200"]
         username: "admin"
         # password: "${OPENSEARCH_PASSWORD}"
-        index_type: trace-analytics-raw        # 使用预定义的 trace 索引模板
+        index: "otel-logs-%{yyyy.MM.dd}"
+        insecure: true
 
-# 指标处理 pipeline（如需）
+# ==================== 指标 Pipeline ====================
 metrics-pipeline:
   source:
     pipeline:
       name: "entry-pipeline"
   processor:
-    - otel_metrics:              # 专门处理指标数据的处理器
+    - otel_metrics:
   sink:
     - opensearch:
         hosts: ["http://opensearch:9200"]
         username: "admin"
         # password: "${OPENSEARCH_PASSWORD}"
         index: "metrics-otel-%{yyyy.MM.dd}"
+        insecure: true
+
+# ==================== Trace 原始数据 Pipeline ====================
+traces-raw-pipeline:
+  source:
+    pipeline:
+      name: "entry-pipeline"
+  processor:
+    - otel_traces:          # 处理 Trace 数据，生成标准 span 格式
+  sink:
+    - opensearch:
+        hosts: ["http://opensearch:9200"]
+        username: "admin"
+        # password: "${OPENSEARCH_PASSWORD}"
+        index_type: trace-analytics-raw      # 自动写入 otel-v1-apm-span-* 索引
+        insecure: true
+
+# ==================== Service Map Pipeline（新增）====================
+service-map-pipeline:
+  delay: "100"               # 可选，数据处理延迟（毫秒）
+  source:
+    pipeline:
+      name: "entry-pipeline"
+  processor:
+    - service_map:
+        # window_duration: 180    # 关系计算窗口（秒），默认 3 分钟
+        # 其他可选参数：
+        # eager_metadata_refresh: false
+  sink:
+    - opensearch:
+        hosts: ["http://opensearch:9200"]
+        username: "admin"
+        # password: "${OPENSEARCH_PASSWORD}"
+        index_type: trace-analytics-service-map   # 自动创建 otel-v1-apm-service-map-* 索引
+        insecure: true

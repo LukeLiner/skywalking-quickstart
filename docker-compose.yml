@@ -21,53 +21,53 @@ services:
 
   # SkyWalking OAP - NOT receiving agent traces in Full OTel mode
   # Agents report to OTel Collector instead
-  skywalking-oap:
-    build:
-      context: .
-      dockerfile: skywalking-oap/Dockerfile
-    container_name: skywalking-oap
-    ports:
-      - "12800:12800"  # HTTP port for UI
-    environment:
-      - SW_STORAGE=mysql
-      - SW_JDBC_URL=jdbc:mysql://mysql:3306/skywalking?useSSL=false&serverTimezone=GMT&allowPublicKeyRetrieval=true
-      - SW_DATA_SOURCE_USER=root
-      - SW_DATA_SOURCE_PASSWORD=root
-      # Kafka Fetcher Configuration - consume from Kafka
-      - SW_KAFKA_FETCHER=default
-      - SW_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - SW_KAFKA_FETCHER_GROUP_ID=skywalking-oap
-      - SW_KAFKA_FETCHER_TOPIC_TRACING=sw-traces
-      - SW_KAFKA_FETCHER_TOPIC_METRICS=sw-metrics
-      - SW_KAFKA_FETCHER_ENABLE_NATIVE_PROTO_LOG=true
-      # Kafka Producer Config (for admin client)
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-    healthcheck:
-      test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/12800"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 120s
-    networks:
-      - skywalking-net
-    depends_on:
-      mysql:
-        condition: service_healthy
-      kafka:
-        condition: service_healthy
+  # skywalking-oap:
+  #   build:
+  #     context: .
+  #     dockerfile: skywalking-oap/Dockerfile
+  #   container_name: skywalking-oap
+  #   ports:
+  #     - "12800:12800"  # HTTP port for UI
+  #   environment:
+  #     - SW_STORAGE=mysql
+  #     - SW_JDBC_URL=jdbc:mysql://mysql:3306/skywalking?useSSL=false&serverTimezone=GMT&allowPublicKeyRetrieval=true
+  #     - SW_DATA_SOURCE_USER=root
+  #     - SW_DATA_SOURCE_PASSWORD=root
+  #     # Kafka Fetcher Configuration - consume from Kafka
+  #     - SW_KAFKA_FETCHER=default
+  #     - SW_KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+  #     - SW_KAFKA_FETCHER_GROUP_ID=skywalking-oap
+  #     - SW_KAFKA_FETCHER_TOPIC_TRACING=sw-traces
+  #     - SW_KAFKA_FETCHER_TOPIC_METRICS=sw-metrics
+  #     - SW_KAFKA_FETCHER_ENABLE_NATIVE_PROTO_LOG=true
+  #     # Kafka Producer Config (for admin client)
+  #     - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+  #   healthcheck:
+  #     test: ["CMD", "bash", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/12800"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 120s
+  #   networks:
+  #     - skywalking-net
+  #   depends_on:
+  #     mysql:
+  #       condition: service_healthy
+  #     kafka:
+  #       condition: service_healthy
 
-  skywalking-ui:
-    image: apache/skywalking-ui:9.3.0
-    container_name: skywalking-ui
-    depends_on:
-      skywalking-oap:
-        condition: service_healthy
-    ports:
-      - "8080:8080"
-    environment:
-      - SW_OAP_ADDRESS=http://skywalking-oap:12800
-    networks:
-      - skywalking-net
+  # skywalking-ui:
+  #   image: apache/skywalking-ui:9.3.0
+  #   container_name: skywalking-ui
+  #   depends_on:
+  #     skywalking-oap:
+  #       condition: service_healthy
+  #   ports:
+  #     - "8080:8080"
+  #   environment:
+  #     - SW_OAP_ADDRESS=http://skywalking-oap:12800
+  #   networks:
+  #     - skywalking-net
 
   mysql:
     image: mysql:8.0
@@ -322,22 +322,22 @@ services:
         condition: service_healthy
     restart: always
 
-  # Format Converter: SkyWalking format -> OTLP format
-  format-converter:
-    build:
-      context: ./format-converter
-    container_name: format-converter
-    environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
-      - INPUT_TOPIC=sw-traces
-      - OUTPUT_TOPIC=otlp-spans
-      - CONSUMER_GROUP_ID=format-converter
-    networks:
-      - skywalking-net
-    depends_on:
-      kafka:
-        condition: service_healthy
-    restart: always
+  # 废弃
+  # format-converter:
+  #   build:
+  #     context: ./format-converter
+  #   container_name: format-converter
+  #   environment:
+  #     - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+  #     - INPUT_TOPIC=sw-traces
+  #     - OUTPUT_TOPIC=otlp-spans
+  #     - CONSUMER_GROUP_ID=format-converter
+  #   networks:
+  #     - skywalking-net
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #   restart: always
 
 networks:
   skywalking-net:
