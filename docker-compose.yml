@@ -172,7 +172,7 @@ services:
       - "8090:8090"
     environment:
       - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true&allowPublicKeyRetrieval=true
       - SPRING_DATASOURCE_USERNAME=root
       - SPRING_DATASOURCE_PASSWORD=root
       - SW_AGENT_NAME=xiaozhou-product

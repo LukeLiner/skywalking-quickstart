@@ -64,13 +64,7 @@ receivers:
             - targets: ['cadvisor:8080']
 
 processors:
-  filter/null_metrics:
-      metrics:
-        exclude:
-          match_type: expr
-          expressions:
-            - 'MetricValue("jvm_memory_max_bytes") == nil'
-            - 'MetricValue("process_cpu_usage") == nil'
+
   batch:
     timeout: 10s
     send_batch_size: 1024
