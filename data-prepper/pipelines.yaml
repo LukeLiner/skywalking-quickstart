@@ -1,110 +1,93 @@
-# Data Prepper Pipeline Configuration
-# OTLP Traces and Logs enabled
-
-# ============== OTel Logs Pipeline ==============
-# 接收来自 OTel Collector 的日志数据
-otel-logs-pipeline:
+otlp-pipeline:
+  workers: 5
+  delay: 10
   source:
-    otel_logs_source:
-      port: 21892
+    otlp:
       ssl: false
-  buffer:
-    bounded_blocking:
-      buffer_size: 10240
-      batch_size: 1024
-  sink:
-    - opensearch:
-        hosts:
-          - "http://opensearch:9200"
-        index_type: custom
-        index: "logs-otel-%{yyyy.MM.dd}"
-        bulk_size: 50
-        flush_timeout: 10
-        dlq_file: "/usr/share/data-prepper/data/prepper-writer-dlq.log"
-
-
-# ============== Metrics Pipeline (from OTel Collector) ==============
-# 接收来自 OTel Collector 的指标数据（通过 Prometheus receiver 采集）
-otel-metrics-pipeline:
-  source:
-    otel_metrics_source:
-      port: 21891
-      ssl: false
-  buffer:
-    bounded_blocking:
-      buffer_size: 5120
-      batch_size: 512
-  processor:
-    - otel_metrics_raw_processor:
-  sink:
-    - opensearch:
-        hosts:
-          - "http://opensearch:9200"
-        index_type: custom
-        index: "metrics-otel-%{yyyy.MM.dd}"
-        bulk_size: 20
-        flush_timeout: 30
-
-# ============== OTel Trace Pipeline ==============
-# Entry pipeline: receive OTLP traces from OTel Collector
-# Following OpenSearch official trace analytics configuration
-otel-trace-pipeline:
-  workers: 8
-  delay: "100"
-  source:
-    otel_trace_source:
       port: 21890
-      ssl: false
-      authentication:
-        unauthenticated:
-  buffer:
-    bounded_blocking:
-      buffer_size: 500000
-      batch_size: 10000
+  router:
+    - "LOG": '/eventType == "LOG"'
+    - "TRACE": '/eventType == "TRACE"'
+  route:
+    - LOG: [otel-logs-pipeline]
+    - TRACE: [otel-traces-pipeline]
+
+
+otel-logs-pipeline:
+workers: 5
+delay: 10
+source:
+  pipeline:
+    name: "otlp-pipeline"
+processor:
+  - copy_values:
+      entries:
+        - from_key: "time"
+          to_key: "@timestamp"
+sink:
+  - opensearch:
+      hosts: ["https://opensearch:9200"]
+      username: "admin"
+      password: "${OPENSEARCH_PASSWORD}"
+      insecure: true
+      index_type: log-analytics-plain
+
+otel-traces-pipeline:
+  source:
+    pipeline:
+      name: "otlp-pipeline"
   sink:
     - pipeline:
-        name: "raw-trace-pipeline"
+        name: "traces-raw-pipeline"
     - pipeline:
         name: "service-map-pipeline"
 
-# Raw trace processing pipeline
-# 原始 Trace 数据处理 - 存储到 otel-v1-apm-span-* 索引
-# Fixed: index_type changed to trace-analytics-raw for OpenSearch Dashboards compatibility
-raw-trace-pipeline:
-  workers: 8
+
+traces-raw-pipeline:
   source:
     pipeline:
-      name: "otel-trace-pipeline"
-  buffer:
-    bounded_blocking:
-      buffer_size: 500000
-      batch_size: 10000
+      name: "otel-traces-pipeline"
   processor:
     - otel_traces:
   sink:
     - opensearch:
-        hosts:
-          - "http://opensearch:9200"
-        index_type: trace-analytics-raw
+        hosts: ["https://opensearch:9200"]
+        username: "admin"
+        password: "${OPENSEARCH_PASSWORD}"
+        insecure: true
+        index_type: trace-analytics-plain-raw
 
-# Service map pipeline
-# 服务地图数据处理 - 生成拓扑图，存储到 otel-v1-apm-service-map-* 索引
+
 service-map-pipeline:
-  workers: 8
-  delay: "100"
   source:
     pipeline:
-      name: "otel-trace-pipeline"
-  buffer:
-    bounded_blocking:
-      buffer_size: 500000
-      batch_size: 10000
+      name: "otel-traces-pipeline"
   processor:
-    - service_map:
+    - otel_apm_service_map:
+        group_by_attributes:
+          - telemetry.sdk.language
+        window_duration: "10s"
+  route:
+    - SERVICE_MAP: [opensearch-service-map-sink]
+    - METRIC: [prometheus-service-map-sink]
   sink:
     - opensearch:
-        hosts:
-          - "http://opensearch:9200"
-        index_type: trace-analytics-service-map
-        bulk_size: 20
-        flush_timeout: 30
+        name: opensearch-service-map-sink
+        hosts: ["https://opensearch:9200"]
+        username: "admin"
+        password: "${OPENSEARCH_PASSWORD}"
+        insecure: true
+        index_type: otel-v2-apm-service-map
+    - prometheus_remote_write:
+        name: prometheus-service-map-sink
+        url: "http://prometheus:9090/api/v1/write"
+        max_events: 500
+        flush_timeout: "5s"
+
+ssl: false
+experimental:
+  enabled_plugins:
+    processor:
+      - otel_apm_service_map
+    sink:
+      - prometheus

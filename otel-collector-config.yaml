@@ -5,165 +5,60 @@ receivers:
         endpoint: 0.0.0.0:4317
       http:
         endpoint: 0.0.0.0:4318
-        include_metadata: true
-
-  # Prometheus receiver - 采集 Prometheus 格式的指标
-  # 官方文档: https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/receiver/prometheusreceiver
-  prometheus:
-    # 可选：修剪指标名称中的单位/后缀（实验性功能）
-    trim_metric_suffixes: false
-    
-    # Prometheus 抓取配置（完整支持 Prometheus scrape_config 语法）
-    config:
-      global:
-        scrape_interval: 30s
-        scrape_timeout: 10s
-        scrape_native_histograms: false
-        scrape_protocols:
-          - PrometheusProto
-          - OpenMetricsText1.0.0
-          - OpenMetricsText0.0.1
-          - PrometheusText0.0.4
-      
-      scrape_configs:
-        # 1. OTel Collector 自身指标
-        - job_name: 'otel-collector'
-          scrape_interval: 30s
-          static_configs:
-            - targets: ['localhost:8888']
-        
-        # 2. Spring Boot 应用 - xiaozhou-order
-        - job_name: 'xiaozhou-order'
-          scrape_interval: 30s
-          metrics_path: '/actuator/prometheus'
-          static_configs:
-            - targets: ['xiaozhou-order:8089']
-          # 可选：指标重标签配置（示例：只保留 JVM 相关指标）
-          # metric_relabel_configs:
-          #   - source_labels: [__name__]
-          #     regex: "jvm_.*"
-          #     action: keep
-        
-        # 3. Spring Boot 应用 - xiaozhou-product
-        - job_name: 'xiaozhou-product'
-          scrape_interval: 30s
-          metrics_path: '/actuator/prometheus'
-          static_configs:
-            - targets: ['xiaozhou-product:8090']
-        
-        # 4. Spring Boot 应用 - xiaozhou-stock
-        - job_name: 'xiaozhou-stock'
-          scrape_interval: 30s
-          metrics_path: '/actuator/prometheus'
-          static_configs:
-            - targets: ['xiaozhou-stock:8091']
-        
-        # 5. cAdvisor 容器指标
-        - job_name: 'cadvisor'
-          scrape_interval: 30s
-          static_configs:
-            - targets: ['cadvisor:8080']
-
-
+        cors:
+          allowed_origins: ["http://*", "https://*"]
 # Processors
 processors:
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 80
+    spike_limit_percentage: 25
   batch:
     timeout: 10s
     send_batch_size: 1024
-  
   resourcedetection:
     detectors: [env, system]
-    timeout: 5s
-
-  resource:
-    attributes:
-      - key: deployment.environment
-        value: "production"
-        action: insert
-
-  # Transform logs to add trace context
   transform:
-    trace_statements:
-        - context: resource
-          statements:
-            - set(resource.attributes["service.name"], "unknown") where resource.attributes["service.name"] == nil
-
-  # OTLP processor to ensure proper OTLP format for traces
-  transform/traces:
     error_mode: ignore
     trace_statements:
-      - context: resource
+      - context: span
         statements:
-          - keep_keys(resource.attributes, ["service.name", "service.namespace", "service.instance.id", "service.version", "deployment.environment"])
-          - set(resource.attributes["telemetry.sdk.name"], "opentelemetry")
-          - set(resource.attributes["telemetry.sdk.language"], "java")
-
-  # Transform processor for logs
-  transform/logs:
-    error_mode: ignore
+          - replace_pattern(attributes["url.path"], "\\?.*", "")
+          - replace_pattern(name, "\\?.*", "")
+          - replace_pattern(name, "GET /api/products/[^/]+", "GET /api/products/{productId}")
+          - set(attributes["db_system_name"], attributes["db.system.name"]) where attributes["db.system.name"] != nil
+          - set(attributes["code_function_name"], attributes["code.function.name"]) where attributes["code.function.name"] != nil
+          - set(attributes["user_agent_original"], attributes["user_agent.original"]) where attributes["user_agent.original"] != nil
+          - set(attributes["upstream_cluster_name"], attributes["upstream_cluster.name"]) where attributes["upstream_cluster.name"] != nil
+          - set(attributes["error_type"], attributes["error.type"]) where attributes["error.type"] != nil
+          - set(attributes["app_ads_contextKeys"], attributes["app.ads.contextKeys"]) where attributes["app.ads.contextKeys"] != nil
+          - set(attributes["rpc_system"], attributes["rpc.system"]) where attributes["rpc.system"] != nil
     log_statements:
-      - context: resource
+      - context: log
         statements:
-          - keep_keys(resource.attributes, ["service.name", "service.namespace", "service.instance.id", "service.version", "deployment.environment"])
-          - set(resource.attributes["telemetry.sdk.name"], "opentelemetry")
-          - set(resource.attributes["telemetry.sdk.language"], "java")
-
-  # Transform processor for metrics
-  transform/metrics:
-    error_mode: ignore
-    metric_statements:
-      - context: resource
-        statements:
-          - set(resource.attributes["telemetry.sdk.name"], "opentelemetry")
+          - flatten(body, "")
+          - merge_maps(body, body[""], "upsert")
+          - delete_key(body, "")
+          - set(body, Concat([body], ", ")) where IsMap(body)
 
 # Exporters
 exporters:
-  # OTLP exporter to Data Prepper (for metrics)
-  otlp/dataprepper-metrics:
-    endpoint: data-prepper:21891
-    tls:
-      insecure: true
-    # 配置重试和超时
-    retry_on_failure:
-      enabled: true
-      initial_interval: 5s
-      max_interval: 30s
-      max_elapsed_time: 300s
-    timeout: 30s
-  
-  # OTLP gRPC exporter to Data Prepper (for traces)
-  otlp/dataprepper-traces:
+  debug:
+    verbosity: detailed
+  otlp/opensearch:
     endpoint: data-prepper:21890
-    tls:
-      insecure: true
-
-  # OTLP exporter to Data Prepper (for logs) - port 21892
-  otlp/dataprepper-logs:
-    endpoint: data-prepper:21892
     tls:
       insecure: true
 
 # Service pipelines
 service:
   pipelines:
-    # Metrics pipeline - 接收 Prometheus 抓取的指标，导出到 Data Prepper
-    metrics:
-      receivers: [prometheus]
-      processors: [resourcedetection, resource, transform/metrics, batch]
-      exporters: [otlp/dataprepper-metrics]
-    
-    # Traces pipeline - receives OTLP traces from external clients
     traces:
       receivers: [otlp]
-      processors: [resource, transform/traces, batch]
-      exporters: [otlp/dataprepper-traces]
-
-    # Logs pipeline - receives OTLP logs from Java applications via Java agent
+      processors: [resourcedetection, memory_limiter, transform, batch]
+      exporters: [otlp/opensearch, debug]
     logs:
       receivers: [otlp]
-      processors: [resource, transform/logs, batch]
-      exporters: [otlp/dataprepper-logs]
+      processors: [resourcedetection, memory_limiter, transform, batch]
+      exporters: [otlp/opensearch, debug]
   
-  telemetry:
-    logs:
-      level: info

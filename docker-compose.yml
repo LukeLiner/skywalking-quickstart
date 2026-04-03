@@ -148,9 +148,6 @@ services:
       - ./data-prepper/data-prepper-config.yaml:/usr/share/data-prepper/config/data-prepper-config.yaml
     ports:
       - "21890:21890"  # OTel trace source
-      - "21892:21892"  # OTel logs source
-      - "4900:4900"    # Data Prepper server (health check)
-      - "21891:21891"  # OTel metrics source - DISABLED
     networks:
       - skywalking-net
     depends_on:
@@ -172,7 +169,7 @@ services:
     ports:
       - "4317:4317"  # OTLP gRPC receiver
       - "4318:4318"  # OTLP HTTP receiver
-      # - "8888:8888"  # Prometheus metrics scrape endpoint - DISABLED
+      - "8888:8888"  # Prometheus metrics scrape endpoint - DISABLED
     volumes:
       - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
       - app-logs:/var/log/apps:ro
@@ -196,16 +193,13 @@ services:
       - "8089:8089"
     environment:
       - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
-      # OpenTelemetry 配置 - 使用 HTTP 协议和端口 4318
       - OTEL_SERVICE_NAME=xiaozhou-order
-      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
-      - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
-      # 启用日志采集
+      - OTEL_RESOURCE_ATTRIBUTES=service.version=1.2.0,deployment.environment=prod
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_TRACES_SAMPLER_ARG=1
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
       - OTEL_LOGS_EXPORTER=otlp
-      - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://otel-collector:4318/v1/logs
-      - OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
-      - OTEL_METRICS_EXPORTER=none
-      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
+      - OTEL_METRICS_EXPORTER=otlp
     volumes:
       - app-logs:/var/log/apps
       - ${USERPROFILE}/.m2:/root/.m2
@@ -215,77 +209,77 @@ services:
     networks:
       - skywalking-net
 
-  xiaozhou-product:
-    build:
-      context: .
-      dockerfile: xiaozhou-product/Dockerfile
-      args:
-        - HTTP_PROXY=${HTTP_PROXY}
-        - HTTPS_PROXY=${HTTPS_PROXY}
-    container_name: xiaozhou-product
-    ports:
-      - "8090:8090"
-    environment:
-      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true&allowPublicKeyRetrieval=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=root
-      # OpenTelemetry 配置 - 使用 HTTP 协议和端口 4318
-      - OTEL_SERVICE_NAME=xiaozhou-product
-      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
-      - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
-      # 启用日志采集
-      - OTEL_LOGS_EXPORTER=otlp
-      - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://otel-collector:4318/v1/logs
-      - OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
-      - OTEL_METRICS_EXPORTER=none
-      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
-    volumes:
-      - app-logs:/var/log/apps
-      - ${USERPROFILE}/.m2:/root/.m2
-    depends_on:
-      mysql:
-        condition: service_healthy
-      nacos:
-        condition: service_started
-    networks:
-      - skywalking-net
+  # xiaozhou-product:
+  #   build:
+  #     context: .
+  #     dockerfile: xiaozhou-product/Dockerfile
+  #     args:
+  #       - HTTP_PROXY=${HTTP_PROXY}
+  #       - HTTPS_PROXY=${HTTPS_PROXY}
+  #   container_name: xiaozhou-product
+  #   ports:
+  #     - "8090:8090"
+  #   environment:
+  #     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+  #     - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true&allowPublicKeyRetrieval=true
+  #     - SPRING_DATASOURCE_USERNAME=root
+  #     - SPRING_DATASOURCE_PASSWORD=root
+  #     # OpenTelemetry 配置 - 使用 HTTP 协议和端口 4318
+  #     - OTEL_SERVICE_NAME=xiaozhou-product
+  #     - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
+  #     - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+  #     # 启用日志采集
+  #     - OTEL_LOGS_EXPORTER=otlp
+  #     - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://otel-collector:4318/v1/logs
+  #     - OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
+  #     - OTEL_METRICS_EXPORTER=none
+  #     - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
+  #   volumes:
+  #     - app-logs:/var/log/apps
+  #     - ${USERPROFILE}/.m2:/root/.m2
+  #   depends_on:
+  #     mysql:
+  #       condition: service_healthy
+  #     nacos:
+  #       condition: service_started
+  #   networks:
+  #     - skywalking-net
 
-  xiaozhou-stock:
-    build:
-      context: .
-      dockerfile: xiaozhou-stock/Dockerfile
-      args:
-        - HTTP_PROXY=${HTTP_PROXY}
-        - HTTPS_PROXY=${HTTPS_PROXY}
-    container_name: xiaozhou-stock
-    ports:
-      - "8091:8091"
-    environment:
-      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true&allowPublicKeyRetrieval=true
-      - SPRING_DATASOURCE_USERNAME=root
-      - SPRING_DATASOURCE_PASSWORD=root
-      # OpenTelemetry 配置 - 使用 HTTP 协议和端口 4318
-      - OTEL_SERVICE_NAME=xiaozhou-stock
-      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
-      - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
-      # 启用日志采集
-      - OTEL_LOGS_EXPORTER=otlp
-      - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://otel-collector:4318/v1/logs
-      - OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
-      - OTEL_METRICS_EXPORTER=none
-      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
-    volumes:
-      - app-logs:/var/log/apps
-      - ${USERPROFILE}/.m2:/root/.m2
-    depends_on:
-      mysql:
-        condition: service_healthy
-      nacos:
-        condition: service_started
-    networks:
-      - skywalking-net
+  # xiaozhou-stock:
+  #   build:
+  #     context: .
+  #     dockerfile: xiaozhou-stock/Dockerfile
+  #     args:
+  #       - HTTP_PROXY=${HTTP_PROXY}
+  #       - HTTPS_PROXY=${HTTPS_PROXY}
+  #   container_name: xiaozhou-stock
+  #   ports:
+  #     - "8091:8091"
+  #   environment:
+  #     - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+  #     - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/mytestshop?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=GMT%2b8&allowMultiQueries=true&allowPublicKeyRetrieval=true
+  #     - SPRING_DATASOURCE_USERNAME=root
+  #     - SPRING_DATASOURCE_PASSWORD=root
+  #     # OpenTelemetry 配置 - 使用 HTTP 协议和端口 4318
+  #     - OTEL_SERVICE_NAME=xiaozhou-stock
+  #     - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=http://otel-collector:4318/v1/traces
+  #     - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+  #     # 启用日志采集
+  #     - OTEL_LOGS_EXPORTER=otlp
+  #     - OTEL_EXPORTER_OTLP_LOGS_ENDPOINT=http://otel-collector:4318/v1/logs
+  #     - OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf
+  #     - OTEL_METRICS_EXPORTER=none
+  #     - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=production
+  #   volumes:
+  #     - app-logs:/var/log/apps
+  #     - ${USERPROFILE}/.m2:/root/.m2
+  #   depends_on:
+  #     mysql:
+  #       condition: service_healthy
+  #     nacos:
+  #       condition: service_started
+  #   networks:
+  #     - skywalking-net
 
 networks:
   skywalking-net:
